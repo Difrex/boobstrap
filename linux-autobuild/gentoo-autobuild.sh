@@ -1,9 +1,5 @@
 #!/bin/bash
 
-MIRROR_URL="http://distfiles.gentoo.org"
-
-MIRROR_URL="http://mirror.yandex.ru/gentoo-distfiles"
-
 configure() {
 
 	cat > /etc/portage/make.conf <<"EOF"
@@ -40,6 +36,7 @@ EOF
 }
 
 main() {
+	local MIRROR_URL="http://mirror.yandex.ru/gentoo-distfiles"
 	local WORKDIR
 	local AUTOBUILD_URL
 
