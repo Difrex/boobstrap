@@ -1,0 +1,420 @@
+#!/bin/bash
+
+# mkbootstrap crux_gnulinux chroot/ --pkgadd-bin=./pkgadd --ports-dir=/mnt/crux/core -- bash
+mkbootstrap() {
+	if [ "$1" = "crux_gnulinux" ] || [ "$1" = "gentoo_gnulinux" ] || [ "$1" = "slackware_gnulinux" ]; then
+		shift
+	else
+		echo "Sorry, only CRUX GNU/Linux supported at this time."
+		exit 0
+	fi
+	
+	local DIRECTORY
+	local PORTS_TREE
+	local PORTS_LIST
+	local PORTS
+
+	while [ "$1" ]; do
+		case "$1" in
+			"--ports-dir")
+				PORTS_TREE=(${PORTS_TREE[@]} $2)
+				shift
+				;;
+			*)
+				if [ -z "$DIRECTORY" ]; then
+					DIRECTORY="$1"
+				else
+					PORTS_LIST=(${PORTS_LIST[@]} $1)
+				fi
+				;;
+		esac
+		shift
+	done
+
+	local dir
+	local prt
+	local chk
+	for dir in ${PORTS_TREE[@]}; do
+		for prt in $dir/*; do
+			if [ "${#PORTS_LIST[@]}" = "0" ]; then
+				PORTS=(${PORTS[@]} $prt)
+			else
+				for chk in ${PORTS_LIST[@]}; do
+					case $prt in
+						*"/$chk") PORTS=(${PORTS[@]} $prt) ;;
+						*"/$chk#"*) PORTS=(${PORTS[@]} $prt) ;;
+					esac
+				done
+			fi
+		done
+	done
+
+	mkdir $DIRECTORY/var/lib/pkg -p
+	touch $DIRECTORY/var/lib/pkg/db
+
+	for prt in ${PORTS[@]}; do
+		echo -n "Install: $prt"
+		pkgadd --root $DIRECTORY $prt
+		if [ "$?" = "0" ]; then
+			echo " OK"
+		else
+			echo " ERROR"
+		fi
+	done
+}
+
+# mkinitramfs initramfs/ --standalone chroot/ --output initrd
+# mkinitramfs initramfs/ --overlay chroot/ --overlay persistent/ --output initrd
+mkinitramfs() {
+	local DIRECTORY
+	local STANDALONE_MODE
+	local OVERLAY_MODE
+	local OVERLAYS
+	local NUM
+	local OUTPUT
+
+	while [ "$1" ]; do
+		case "$1" in
+			"--standalone")
+				STANDALONE_MODE="+"
+				shift
+				;;
+			"--overlay")
+				OVERLAY_MODE="+"
+				OVERLAYS=(${OVERLAYS[@]} $2)
+				shift
+				;;
+			"--output")
+				OUTPUT="$2"
+				shift
+				;;
+			*)
+				if [ -z "$DIRECTORY" ]; then
+					DIRECTORY="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+
+	if [ -z "$DIRECTORY" ]; then
+		DIRECTORY="."
+	fi
+
+	if [ "$OVERLAY_MODE" ]; then
+
+		mkinitramfs_copy_env $DIRECTORY
+
+		for overlay in ${OVERLAYS[@]}; do
+
+			NUM=$(($NUM + 10))
+
+			mksquashfs \
+				$overlay $DIRECTORY/overlays/$NUM-overlay \
+				-b 1048576 -comp xz -Xdict-size 100% -noappend -no-progress
+
+			done
+
+	fi
+
+	cd $DIRECTORY
+	case $OUTPUT in
+		""|"-") mkinitramfs_cpio ;;
+		*) mkinitramfs_cpio > $OUTPUT ;;
+	esac
+	cd $OLDPWD
+}
+
+mkinitramfs_cpio() {
+	find . -print0 | cpio --null --create --format=newc --verbose
+}
+
+mkinitramfs_copy_bin() {
+	local src="$1"
+	local dst="$2"
+	local dep=""
+
+	if [ "$dst" = "" ]; then
+		dst="$src"
+	fi
+
+	if [ -a "$DIRECTORY$dst" ]; then
+		return
+	fi
+
+	install -D -m 0755 "$src" "$DIRECTORY$dst"
+
+	for dep in $(ldd "$src" | grep -o '/.* '); do
+		mkinitramfs_copy_bin "$dep"
+	done
+}
+
+mkinitramfs_copy_env() {
+	export DIRECTORY=$1
+	for dir in proc sys dev run mnt overlay{,s}; do
+		install -d -m 0755 $1/$dir
+	done
+
+	for dev in console tty tty1 null; do
+		cp -a "/dev/$dev" "$1/dev/$dev"
+	done
+
+	for bin in sh switch_root mount umount mkdir rmdir; do
+		mkinitramfs_copy_bin "$(which $bin)"
+	done
+
+	get_config_init > $1/init
+
+	chmod +x $1/init
+}
+
+# mkbootisofs isoimage/ > bootable.iso
+mkbootisofs() {
+	local DIRECTORY="$1"
+
+	mkdir -p $DIRECTORY/boot
+	mkdir -p $DIRECTORY/boot/grub
+
+	get_config_grub_cfg > $DIRECTORY/boot/grub/grub.cfg
+
+	grub-mkstandalone \
+		--format=i386-pc \
+		--output=$DIRECTORY/boot/grub/grub.raw \
+		--install-modules="linux16 linux normal iso9660 biosdisk memdisk search" \
+		--modules="linux16 linux normal iso9660 biosdisk memdisk search" \
+		--locales="" \
+		--fonts="" \
+		--themes="" \
+		"/boot/grub/grub.cfg=$DIRECTORY/boot/grub/grub.cfg"
+
+	cat $(locate cdboot.img) $DIRECTORY/boot/grub/grub.raw > $DIRECTORY/boot/grub/bios.img
+
+	grub-mkstandalone \
+		--format=x86_64-efi \
+		--output=$DIRECTORY/boot/grub/grub.efi \
+		--install-modules="linux16 linux normal iso9660 memdisk search efi_gop efi_uga font gfxterm gfxmenu png" \
+		--modules="linux16 linux normal iso9660 memdisk search efi_gop efi_uga" \
+		--locales="" \
+		--fonts="" \
+		--themes="starfield" \
+		"/boot/grub/grub.cfg=$DIRECTORY/boot/grub/grub.cfg"
+
+	local temporarely_mountpoint=$(mktemp -d)
+	dd if=/dev/zero of=$DIRECTORY/boot/grub/uefi.img status=none count=8 bs=1M
+	mkdosfs $DIRECTORY/boot/grub/uefi.img
+	mount $DIRECTORY/boot/grub/uefi.img $temporarely_mountpoint
+	mkdir $temporarely_mountpoint/EFI
+	mkdir $temporarely_mountpoint/EFI/BOOT
+	cp $DIRECTORY/boot/grub/grub.efi $temporarely_mountpoint/EFI/BOOT/BOOTX64.EFI
+	umount $temporarely_mountpoint
+
+	xorriso -as mkisofs \
+		-iso-level 3 \
+		-full-iso9660-filenames \
+		-eltorito-boot boot/grub/bios.img \
+		-no-emul-boot \
+		-boot-load-size 4 \
+		-boot-info-table \
+		--boot-catalog-hide \
+		--grub2-boot-info \
+		--grub2-mbr $(locate boot_hybrid.img) \
+		-eltorito-alt-boot \
+		-e boot/grub/uefi.img \
+		-no-emul-boot \
+		-append_partition 2 0xef $DIRECTORY/boot/grub/uefi.img \
+		-graft-points \
+		-quiet \
+		-output - \
+		"$DIRECTORY" 2>/dev/null
+}
+
+main() {
+	local COMMAND
+
+	COMMAND="${0##*/}"
+	
+	if [ "$COMMAND" = "boobstrap" ]; then
+		COMMAND="$1"
+		shift
+	fi
+
+	case $COMMAND in
+		"mkbootstrap") mkbootstrap "$@" ;;
+		"mkinitramfs") mkinitramfs "$@" ;;
+		"mkbootisofs") mkbootisofs "$@" ;;
+		#
+		# - - - - Cut - - - -
+		#
+		"dont_public") dont_public "$@" ;;
+		#
+		# - - - - Cut - - - -
+		#
+		*) echo WUT? ;;
+	esac
+}
+
+get_config_init() {
+	cat <<"EOF"
+#!/bin/sh
+
+mount -t proc none /proc
+
+echo "0" > /proc/sys/kernel/printk
+
+mount -t sysfs none /sys
+
+mount -t devtmpfs devtmpfs /dev
+
+mount -t tmpfs none /run
+
+mount -t tmpfs tmpfs /overlay
+
+lowerdir="/lower"
+upperdir="/overlay/upper"
+workdir="/overlay/work"
+
+mkdir -p $lowerdir
+mkdir -p $upperdir
+mkdir -p $workdir
+
+for overlay in /overlays/*; do
+
+	overlay_mount="${overlay##*/}"
+
+	lowerdir="overlay/$overlay_mount:$lowerdir"
+
+	mkdir -p overlay/$overlay_mount
+
+	mount -t squashfs -o ro $overlay overlay/$overlay_mount
+
+done
+
+mount -t overlay -o ro,lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /mnt
+
+umount /proc
+umount /sys
+umount /dev
+umount /run
+
+exec switch_root /mnt /sbin/init
+EOF
+}
+
+get_config_grub_cfg() {
+	cat <<"EOF"
+if loadfont /boot/grub/themes/starfield/dejavu_16.pf2; then
+
+	insmod gfxterm
+	set gfxmode=auto
+	set gfxpayload=keep
+	terminal_output gfxterm
+
+	insmod png
+
+	set theme="/boot/grub/themes/starfield/theme.txt"
+
+fi
+
+set menu_color_highlight=white/cyan
+set menu_color_normal=black/light-gray
+set color_normal=light-blue/blue
+
+set timeout=10
+
+set default=0
+
+menuentry "GNU/Linux" {
+	search --no-floppy --file --set root /boot/vmlinuz
+
+	linux /boot/vmlinuz
+	initrd /boot/initrd
+}
+EOF
+}
+
+#
+# Skip this to read, please.
+#
+# Well, if you really want,
+# How do I use this code:
+#
+: '
+# find dist/crux_gnulinux/conf/firstvds/
+dist/crux_gnulinux/conf/firstvds/
+dist/crux_gnulinux/conf/firstvds/overlays
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/root
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/root/.ssh
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/root/.ssh/authorized_keys
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo/r
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo/r/rxvt-unicode-256color
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo/r/rxvt-unicode
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/lib
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/lib/locale
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/lib/locale/locale-archive
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/rc.conf
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/rc.d
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/rc.d/net.ipv4.eth0
+dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/profile
+dist/crux_gnulinux/conf/firstvds/ports
+dist/crux_gnulinux/conf/firstvds/ports/customs
+dist/crux_gnulinux/conf/firstvds/ports/customs/linux#5.7-1.pkg.tar.gz
+'
+
+dont_public() {
+	TMP=/mnt/crux/tmp
+
+	for pc in netboot; do
+		echo "Build PC Configuration [$pc]"
+
+		local pc_workdir="$(mktemp -d -p $TMP)"
+		local chroot_dir="$(mktemp -d -p $TMP)"
+
+		local ports_dir_string
+		for ports_dir in $(dirname $0)/dist/crux_gnulinux/conf/$pc/ports/*; do
+			ports_dir_string="$ports_dir_string --ports-dir $ports_dir"
+		done
+
+		mkbootstrap crux_gnulinux $chroot_dir \
+			${ports_dir_string:1}
+
+		local kernel_version
+		for kernel_version in $chroot_dir/lib/modules/*; do
+			kernel_version="${kernel_version##*/}"
+		done
+
+		install -D -m 0644 $chroot_dir/lib/modules/$kernel_version/vmlinuz $pc_workdir/iso/boot/vmlinuz
+
+		local overlays_string
+		for overlay in $(dirname $0)/dist/crux_gnulinux/conf/$pc/overlays/*; do
+			overlays_string="$overlays_string --overlay $overlay"
+		done
+
+		mkinitramfs $(mktemp -d -p $TMP) --output $pc_workdir/iso/boot/initrd \
+			--overlay "$chroot_dir" \
+			${overlays_string:1}
+
+		mkbootisofs $pc_workdir/iso > /tmp/boot.iso
+
+		echo "Done [$pc]"
+
+		exit 0
+
+		#
+		# PXE installation
+		#
+
+		cat > /var/tftp/boot/$pc/boot/grub.cfg <<EOF
+menuentry "Configuration [$pc] for \${net_pxe_ip} (\${net_pxe_mac})" {
+	linux /boot/vmlinuz.img-$kernel_version
+	initrd /boot/initrd.img-$kernel_version
+}
+EOF
+	done
+}
+
+main "$@"
