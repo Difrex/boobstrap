@@ -62,8 +62,6 @@ main() {
 
 	chroot $WORKDIR/chroot /bin/bash -c "/bin/su - -c /configure"
 
-	exit 0
-
 	mkdir $WORKDIR/initramfs
 
 	mkinitramfs $WORKDIR/initramfs \
