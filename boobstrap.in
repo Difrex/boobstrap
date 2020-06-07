@@ -112,7 +112,6 @@ mkinitramfs() {
 		case $COMMAND in
 			"") COMMAND="cp -a {source} {destination}" ;;
 			"{template:squashfs:xz}") COMMAND="mksquashfs {source} {destination} -b 1048576 -comp xz -Xdict-size 100% -noappend" ;;
-			"{template:gnutar}") COMMAND="tar -c -f {destination} -v -- {source}" ;;
 		esac
 
 		mkinitramfs_copy_env $DIRECTORY
@@ -128,16 +127,16 @@ mkinitramfs() {
 
 			sh -c "$COMMAND"
 
-			done
+		done
 
 	fi
 
-	cd $DIRECTORY
+	pushd $DIRECTORY
 	case $OUTPUT in
 		""|"-") mkinitramfs_cpio ;;
 		*) mkinitramfs_cpio > $OUTPUT ;;
 	esac
-	cd $OLDPWD
+	popd
 }
 
 mkinitramfs_cpio() {
