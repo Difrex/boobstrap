@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# mkbootstrap crux_gnulinux chroot/ --pkgadd-bin=./pkgadd --ports-dir=/mnt/crux/core -- bash
 mkbootstrap() {
 	if [ "$1" = "crux_gnulinux" ] || [ "$1" = "gentoo_gnulinux" ] || [ "$1" = "slackware_gnulinux" ]; then
 		shift
@@ -63,13 +62,12 @@ mkbootstrap() {
 	done
 }
 
-# mkinitramfs initramfs/ --standalone chroot/ --output initrd
-# mkinitramfs initramfs/ --overlay chroot/ --overlay persistent/ --output initrd
 mkinitramfs() {
 	local DIRECTORY
 	local STANDALONE_MODE
 	local OVERLAY_MODE
 	local OVERLAYS
+	local COMMAND
 	local NUM
 	local OUTPUT
 
@@ -82,6 +80,10 @@ mkinitramfs() {
 			"--overlay")
 				OVERLAY_MODE="+"
 				OVERLAYS=(${OVERLAYS[@]} $2)
+				shift
+				;;
+			"--command")
+				COMMAND="$2"
 				shift
 				;;
 			"--output")
@@ -101,17 +103,30 @@ mkinitramfs() {
 		DIRECTORY="."
 	fi
 
+	if [ "$STANDALONE_MODE" ]; then
+		OVERLAY_MODE=""
+	fi
+
 	if [ "$OVERLAY_MODE" ]; then
 
+		case $COMMAND in
+			"") COMMAND="cp -a {source} {destination}" ;;
+			"{template:squashfs:xz}") COMMAND="mksquashfs {source} {destination} -b 1048576 -comp xz -Xdict-size 100% -noappend" ;;
+			"{template:gnutar}") COMMAND="tar -c -f {destination} -v -- {source}" ;;
+		esac
+
 		mkinitramfs_copy_env $DIRECTORY
+
+		NUM=0
 
 		for overlay in ${OVERLAYS[@]}; do
 
 			NUM=$(($NUM + 10))
 
-			mksquashfs \
-				$overlay $DIRECTORY/overlays/$NUM-overlay \
-				-b 1048576 -comp xz -Xdict-size 100% -noappend -no-progress
+			COMMAND=${COMMAND//"{source}"/$overlay}
+			COMMAND=${COMMAND//"{destination}"/$DIRECTORY/overlays/$NUM-overlay}
+
+			sh -c "$COMMAND"
 
 			done
 
@@ -145,30 +160,30 @@ mkinitramfs_copy_bin() {
 	install -D -m 0755 "$src" "$DIRECTORY$dst"
 
 	for dep in $(ldd "$src" | grep -o '/.* '); do
-		mkinitramfs_copy_bin "$dep"
+		DIRECTORY=$DIRECTORY mkinitramfs_copy_bin "$dep"
 	done
 }
 
 mkinitramfs_copy_env() {
-	export DIRECTORY=$1
+	local DIRECTORY="$1"
+
 	for dir in proc sys dev run mnt overlay{,s}; do
-		install -d -m 0755 $1/$dir
+		install -d -m 0755 $DIRECTORY/$dir
 	done
 
 	for dev in console tty tty1 null; do
-		cp -a "/dev/$dev" "$1/dev/$dev"
+		cp -a "/dev/$dev" "$DIRECTORY/dev/$dev"
 	done
 
 	for bin in sh switch_root mount umount mkdir rmdir; do
-		mkinitramfs_copy_bin "$(which $bin)"
+		DIRECTORY=$DIRECTORY mkinitramfs_copy_bin "$(which $bin)"
 	done
 
-	get_config_init > $1/init
+	get_config_init > $DIRECTORY/init
 
-	chmod +x $1/init
+	chmod +x $DIRECTORY/init
 }
 
-# mkbootisofs isoimage/ > bootable.iso
 mkbootisofs() {
 	local DIRECTORY="$1"
 
@@ -242,13 +257,6 @@ main() {
 		"mkbootstrap") mkbootstrap "$@" ;;
 		"mkinitramfs") mkinitramfs "$@" ;;
 		"mkbootisofs") mkbootisofs "$@" ;;
-		#
-		# - - - - Cut - - - -
-		#
-		"dont_public") dont_public "$@" ;;
-		#
-		# - - - - Cut - - - -
-		#
 		*) echo WUT? ;;
 	esac
 }
@@ -330,91 +338,6 @@ menuentry "GNU/Linux" {
 	initrd /boot/initrd
 }
 EOF
-}
-
-#
-# Skip this to read, please.
-#
-# Well, if you really want,
-# How do I use this code:
-#
-: '
-# find dist/crux_gnulinux/conf/firstvds/
-dist/crux_gnulinux/conf/firstvds/
-dist/crux_gnulinux/conf/firstvds/overlays
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/root
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/root/.ssh
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/root/.ssh/authorized_keys
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo/r
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo/r/rxvt-unicode-256color
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/share/terminfo/r/rxvt-unicode
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/lib
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/lib/locale
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/usr/lib/locale/locale-archive
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/rc.conf
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/rc.d
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/rc.d/net.ipv4.eth0
-dist/crux_gnulinux/conf/firstvds/overlays/my-custom-settings/etc/profile
-dist/crux_gnulinux/conf/firstvds/ports
-dist/crux_gnulinux/conf/firstvds/ports/customs
-dist/crux_gnulinux/conf/firstvds/ports/customs/linux#5.7-1.pkg.tar.gz
-'
-
-dont_public() {
-	TMP=/mnt/crux/tmp
-
-	for pc in netboot; do
-		echo "Build PC Configuration [$pc]"
-
-		local pc_workdir="$(mktemp -d -p $TMP)"
-		local chroot_dir="$(mktemp -d -p $TMP)"
-
-		local ports_dir_string
-		for ports_dir in $(dirname $0)/dist/crux_gnulinux/conf/$pc/ports/*; do
-			ports_dir_string="$ports_dir_string --ports-dir $ports_dir"
-		done
-
-		mkbootstrap crux_gnulinux $chroot_dir \
-			${ports_dir_string:1}
-
-		local kernel_version
-		for kernel_version in $chroot_dir/lib/modules/*; do
-			kernel_version="${kernel_version##*/}"
-		done
-
-		install -D -m 0644 $chroot_dir/lib/modules/$kernel_version/vmlinuz $pc_workdir/iso/boot/vmlinuz
-
-		local overlays_string
-		for overlay in $(dirname $0)/dist/crux_gnulinux/conf/$pc/overlays/*; do
-			overlays_string="$overlays_string --overlay $overlay"
-		done
-
-		mkinitramfs $(mktemp -d -p $TMP) --output $pc_workdir/iso/boot/initrd \
-			--overlay "$chroot_dir" \
-			${overlays_string:1}
-
-		mkbootisofs $pc_workdir/iso > /tmp/boot.iso
-
-		echo "Done [$pc]"
-
-		exit 0
-
-		#
-		# PXE installation
-		#
-
-		cat > /var/tftp/boot/$pc/boot/grub.cfg <<EOF
-menuentry "Configuration [$pc] for \${net_pxe_ip} (\${net_pxe_mac})" {
-	linux /boot/vmlinuz.img-$kernel_version
-	initrd /boot/initrd.img-$kernel_version
-}
-EOF
-	done
 }
 
 main "$@"
