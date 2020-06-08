@@ -1,0 +1,17 @@
+# Description: A scripts complex to for GNU/Linux bootstrapping
+# URL:         https://github.com/sp00f1ng/boobstrap
+# Maintainer:  Vanya "Spoofing" Gaevskiy, Sp00f1ng at Sp00f1ng dot COM
+# Depends on:  grub2 grub2-efi xorriso dosfstools
+
+name=boobstrap
+version=git
+release=9999
+source=()
+
+build() {
+	git clone https://github.com/sp00f1ng/$name
+
+	cd $name.git
+
+	make DESTDIR=$PKG install
+}
