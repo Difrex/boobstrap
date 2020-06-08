@@ -11,7 +11,7 @@ source=()
 build() {
 	git clone https://github.com/sp00f1ng/$name
 
-	cd $name.git
+	cd $name
 
 	make DESTDIR=$PKG install
 }
