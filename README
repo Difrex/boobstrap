@@ -1,0 +1,66 @@
+
+Requirements:
+
+	grub2, grub2-efi ("/usr/share/grub/themes" recommened)
+	dosfstools
+	xorriso
+
+Nice to have:
+
+	squashfs-tools
+
+Kernel configuration:
+
+	CONFIG_OVERLAY_FS=y
+
+	CONFIG_SQUASHFS=y
+	CONFIG_SQUASHFS_XZ=y
+	
+Install:
+
+	make DESTDIR=/usr/local install
+
+Very simple usage:
+
+	Download CRUX 3.5 ISO
+	mount ISO to /mnt/crux-media or something
+
+1. Install all core ports into chroot:
+
+	# mkdir chroot/
+
+	# mkbootstrap crux_gnulinux chroot/ \
+		--ports-dir /mnt/crux-media/crux/core
+
+2. Create initrd image:
+
+	# mkdir initramfs/
+
+	# mkinitramfs initramfs/ \
+		--overlay chroot/ \
+		--command "mksquashfs {source} {destination} -b 1048576 -comp xz -Xdict-size 100%"
+		--output $PWD/initrd
+
+3. Create ISO image with kernel and initrd:
+
+	# mkdir bootimage/
+	# mkdir bootimage/boot
+
+	# cp /boot/vmlinuz bootimage/boot/vmlinuz
+	# cp initrd bootimage/boot/initrd
+
+	# mkbootisofs bootimage/ > bootimage.iso
+
+4. ?????
+
+5. PROFIT!
+
+	# dd if=bootimage.iso of=/dev/sdX status=progress
+
+Reboot and you got own bootable linux distro in three simple steps!
+
+You can setup in chroot/ ANY. YES, ANY!!!
+linux distro and then create bootable ISO.
+But just do it manually, skip first step.
+
+More documenation (RU-only): https://www.linux.org.ru/forum/talks/15747003
