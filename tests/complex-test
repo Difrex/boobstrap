@@ -1,0 +1,43 @@
+#! /bin/sh -
+
+mktest() {
+	BOOTIMG="$1"
+	WORKDIR="$2"
+
+	mkdir -p "$WORKDIR/cruxmedia"
+
+	mount "$BOOTIMG" "$WORKDIR/cruxmedia"
+
+	mkdir -p "$WORKDIR/bootstrap"
+
+	mkbootstrap crux_gnulinux "$WORKDIR/bootstrap" --ports-dir "$WORKDIR/cruxmedia/crux/core"
+
+	mkdir -p "$WORKDIR/initramfs"
+
+	mkinitramfs "$WORKDIR/initramfs" \
+		--overlay "$WORKDIR/bootstrap" \
+		--output "$WORKDIR/initramfs.img" \
+		--command "mksquashfs \${SOURCE} \${DESTINATION} -b 1048576 -comp xz -Xdict-size 100%"
+
+	mkdir -p "$WORKDIR/bootimage"
+	mkdir -p "$WORKDIR/bootimage/boot"
+
+	for f in "/boot/vmlinuz-"* "/lib/modules/"*"/vmlinuz"; do
+		if test -f "$f"; then
+			cp "$f" "$WORKDIR/bootimage/boot/vmlinuz"
+		fi
+	done
+
+	mv "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
+
+	mkdir -p "$WORKDIR/bootimage/crux"
+	mkdir -p "$WORKDIR/bootimage/crux/core"
+
+	cp -a "$WORKDIR/cruxmedia/crux/core" "$WORKDIR/bootimage/crux"
+
+	mkbootisofs "$WORKDIR/bootimage" > "$WORKDIR/bootimage.iso"
+
+	umount "$WORKDIR/cruxmedia"
+}
+
+main "$@"
