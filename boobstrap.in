@@ -282,7 +282,6 @@ mkbootisofs() {
 
 boobstrap_run() {
 	SHARE_DIR="/usr/share"
-	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"
@@ -440,7 +439,7 @@ set menu_color_highlight=white/cyan
 set menu_color_normal=black/light-gray
 set color_normal=light-blue/blue
 
-set timeout=10
+set timeout=3
 
 set default=0
 
