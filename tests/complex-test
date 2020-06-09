@@ -1,6 +1,6 @@
 #! /bin/sh -
 
-mktest() {
+main() {
 	BOOTIMG="$1"
 	WORKDIR="$2"
 
