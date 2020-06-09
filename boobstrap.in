@@ -1,4 +1,4 @@
-#!/bin/sh -
+#! /bin/sh -
 
 mkbootstrap() {
 	case "$1" in
@@ -128,8 +128,11 @@ mkinitramfs() {
 				COMMAND="$2"
 				shift
 				;;
+			"--squashfs-xz")
+				COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -b 1048576 -comp xz -Xdict-size 100%"
+				;;
 			"--output")
-				OUTPUT=$(realpath $2)
+				OUTPUT=$2
 				shift
 				;;
 			*)
@@ -153,29 +156,26 @@ mkinitramfs() {
 
 		case $COMMAND in
 			"") COMMAND="cp -a \${SOURCE} \${DESTINATION}" ;;
-			"\${SQUASHFS_XZ}") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -b 1048576 -comp xz -Xdict-size 100%" ;;
 		esac
 
 		mkinitramfs_copy_env $DIRECTORY
 
 		NUM=0
-
 		for overlay in $OVERLAYS; do
-
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
 			DESTINATION="$DIRECTORY/overlays/$NUM-overlay"
-
 			eval "$COMMAND"
-
 		done
 
 	fi
 
+	echo $OUTPUT
+
 	cd $DIRECTORY
 	case $OUTPUT in
-		""|"-") find . -print0 | cpio --null --create --format=newc --verbose ;;
-		*) find . -print0 | cpio --null --create --format=newc --verbose > $OUTPUT ;;
+		""|"-") find . -print0 | cpio -0o -H newc ;;
+		*) find . -print0 | cpio -0o -H newc > $OUTPUT ;;
 	esac
 	cd $OLDPWD
 }
@@ -196,7 +196,7 @@ mkinitramfs_copy_bin() {
 	install -D -m 0755 "$src" "$DIRECTORY$dst"
 
 	for dep in $(ldd "$src" | grep -o '/.* '); do
-		DIRECTORY=$DIRECTORY mkinitramfs_copy_bin "$dep"
+		mkinitramfs_copy_bin "$dep"
 	done
 }
 
@@ -212,7 +212,7 @@ mkinitramfs_copy_env() {
 	done
 
 	for bin in sh switch_root mount umount mkdir rmdir; do
-		DIRECTORY=$DIRECTORY mkinitramfs_copy_bin "$(which $bin)"
+		mkinitramfs_copy_bin "$(which $bin)"
 	done
 
 	get_config_init > $DIRECTORY/init
@@ -280,80 +280,93 @@ mkbootisofs() {
 		"$DIRECTORY" 2>/dev/null
 }
 
-mktest() {
-	BOOTIMG="$1"
-	WORKDIR="$2"
+boobstrap_run() {
+	SHARE_DIR="/usr/share"
+	SHARE_DIR="/mnt/boobstrap"
 
-	mkdir -p "$WORKDIR/cruxmedia"
+	TEMPLATE="default"
+	TIMEOUT="0"
+	COMMAND=""
+	INSTALL=""
 
-	mount "$BOOTIMG" "$WORKDIR/cruxmedia"
-
-	mkdir -p "$WORKDIR/bootstrap"
-
-	mkbootstrap crux_gnulinux "$WORKDIR/bootstrap" --ports-dir "$WORKDIR/cruxmedia/crux/core"
-
-	mkdir -p "$WORKDIR/initramfs"
-
-	mkinitramfs "$WORKDIR/initramfs" \
-		--overlay "$WORKDIR/bootstrap" \
-		--output "$WORKDIR/initramfs.img" \
-		--command "mksquashfs \${SOURCE} \${DESTINATION} -b 1048576 -comp xz -Xdict-size 100%"
-
-	mkdir -p "$WORKDIR/bootimage"
-	mkdir -p "$WORKDIR/bootimage/boot"
-
-	for f in "/boot/vmlinuz-"* "/lib/modules/"*"/vmlinuz"; do
-		if test -f "$f"; then
-			cp "$f" "$WORKDIR/bootimage/boot/vmlinuz"
-		fi
+	while test "$1"; do
+		case "$1" in
+			"--iso") ISO="$2" ; shift ;;
+			"--dir") DIR="$2" ; shift ;;
+			"--template") TEMPLATE="$2" ; shift ;;
+			"--timeout") TIMEOUT="$2" ; shift ;;
+			*"="*) INSTALL="$INSTALL $1" ;;
+			"--") shift ; COMMAND="$@" ;;
+		esac
+		shift
 	done
 
-	mv "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
+	if test -z "$ISO"; then
+		for f in "crux.iso" "crux-3.5.iso" "crux-3.5-updated.iso"; do
+			if test -f "$f"; then
+				ISO="$f"
+			fi
+		done
+	fi
 
-	mkdir -p "$WORKDIR/bootimage/crux"
-	mkdir -p "$WORKDIR/bootimage/crux/core"
+	if test -z "$DIR"; then
+		DIR="$(mktemp -d -p $PWD)"
+	fi
 
-	cp -a "$WORKDIR/cruxmedia/crux/core" "$WORKDIR/bootimage/crux"
+	if test "$COMMAND"; then
+		cat > "$DIR/rc.local" <<EOF
+#! /bin/sh -
+$COMMAND
+EOF
+		cat > "$DIR/post-install" <<EOF
+install -D "$DIR/rc.local" "$DIR/configure/etc/rc.local"
+EOF
+		chmod +x "$DIR/post-install"
+	fi
 
-	mkbootisofs "$WORKDIR/bootimage" > "$WORKDIR/bootimage.iso"
+	for i in $INSTALL; do
+		src="${i##*=}"
+		dst="$DIR/configure/${i%%=*}"
+		install -D "$src" "$dst"
+	done
 
-	umount "$WORKDIR/cruxmedia"
+	if test -f "$SHARE_DIR/templates/$TEMPLATE"; then
+		sh -c "$SHARE_DIR/templates/$TEMPLATE $ISO $DIR"
+	fi
+
+	sh -c "$SHARE_DIR/qemu/qemu $DIR/bootimage.iso"
 }
 
-main()
-{
+main() {
 	PROGNAME="${0##*/}"
 
 	if test "$PROGNAME" = "boobstrap"; then
 
-		PROGNAME="$1"
-
 		if test "$2"; then
+			PROGNAME="$1"
 			shift
 		fi
+
+		case "$PROGNAME" in
+			"run") boobstrap_run "$@" ;;
+			"start") boobstrap_start "$@" ;;
+			"stop") boobstrap_stop "$@" ;;
+			"list") boobstrap_list "$@" ;;
+			"--help"|"-h") rtfm ;;
+		esac
+
+		#echo "$PROGNAME: GNU/Linux ( o )( o )strapping"
+		#echo "$PROGNAME: $PROGNAME --help"
 	fi
 
 	case "$PROGNAME" in
-		"mkbootstrap")
-			mkbootstrap "$@"
-			;;
-		"mkinitramfs")
-			mkinitramfs "$@"
-			;;
-		"mkbootisofs")
-			mkbootisofs "$@"
-			;;
-		"mktest")
-			mktest "$@"
-			;;
-		*)
-			rtfm
-			;;
+		"mkbootstrap") mkbootstrap "$@" ;;
+		"mkinitramfs") mkinitramfs "$@" ;;
+		"mkbootisofs") mkbootisofs "$@" ;;
 	esac
 }
 
-rtfm()
-{
+rtfm() {
 	cat <<"EOF"
 WUT?
 EOF

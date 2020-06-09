@@ -1,0 +1,61 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	mkdir "$WORKDIR/cruxmedia"
+	mkdir "$WORKDIR/bootstrap"
+	mkdir "$WORKDIR/configure"
+	mkdir "$WORKDIR/initramfs"
+	mkdir "$WORKDIR/bootimage"
+	mkdir "$WORKDIR/bootimage/boot"
+	mkdir "$WORKDIR/bootimage/crux"
+
+	mount "$BOOTIMG" "$WORKDIR/cruxmedia"
+
+	mkbootstrap crux_gnulinux "$WORKDIR/bootstrap"					\
+											\
+		--ports-dir "$WORKDIR/cruxmedia/crux/core"				\
+		--ports-dir "$WORKDIR/cruxmedia/crux/opt"				\
+		--ports-dir "/usr/ports"						\
+											\
+		"acl"			"gzip"			"pkgutils"		\
+		"attr"			"inetutils"		"procps"		\
+		"bash"			"iproute2"		"rc"			\
+		"bzip2"			"iputils"		"readline"		\
+		"coreutils"		"kbd"			"shadow"		\
+		"dash"			"kmod"			"start-stop-daemon"	\
+		"dhcpcd"		"less"			"sysfsutils"		\
+		"e2fsprogs"		"libcap"		"sysklogd"		\
+		"elfutils"		"libdevmapper"		"sysvinit"		\
+		"eudev"			"libpcre"		"tar"			\
+		"file"			"linux"			"util-linux"		\
+		"filesystem"		"linux-pam"		"vim"			\
+		"findutils"		"lzo"			"wget"			\
+		"gawk"			"ncurses"		"which"			\
+		"glibc"			"openssh"		"xz"			\
+		"grep"			"openssl"		"zlib"
+
+	test -x "$WORKDIR/post-install" && "$WORKDIR/post-install"
+
+	mkinitramfs "$WORKDIR/initramfs"						\
+											\
+		--overlay "$WORKDIR/bootstrap"						\
+		--overlay "$WORKDIR/configure"						\
+		--squashfs-xz								\
+		--output "$WORKDIR/initramfs.img"
+
+	cp "/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
+	mv "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
+
+	mkbootisofs "$WORKDIR/bootimage" > "$WORKDIR/bootimage.iso"
+
+	umount "$WORKDIR/cruxmedia"
+}
+
+main() {
+	BOOTIMG="$1"
+	WORKDIR="$2"
+
+	crux_gnulinux "$@"
+}
+
+main "$@"

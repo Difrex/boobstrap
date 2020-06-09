@@ -1,0 +1,5 @@
+#! /bin/sh -
+
+ISO="$1" ; shift
+
+qemu-system-x86_64 -daemonize -m 1G -smp 4 -nic user -cdrom "$ISO"

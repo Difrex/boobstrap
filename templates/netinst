@@ -1,0 +1,44 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	mkdir "$WORKDIR/cruxmedia"
+	mkdir "$WORKDIR/bootstrap"
+	mkdir "$WORKDIR/configure"
+	mkdir "$WORKDIR/initramfs"
+	mkdir "$WORKDIR/bootimage"
+	mkdir "$WORKDIR/bootimage/boot"
+	mkdir "$WORKDIR/bootimage/crux"
+
+	mount "$BOOTIMG" "$WORKDIR/cruxmedia"
+
+	mkbootstrap crux_gnulinux "$WORKDIR/bootstrap"					\
+											\
+		--ports-dir "$WORKDIR/cruxmedia/crux/core"
+
+	test -x "$WORKDIR/post-install" && "$WORKDIR/post-install"
+
+	mkinitramfs "$WORKDIR/initramfs"						\
+											\
+		--overlay "$WORKDIR/bootstrap"						\
+		--overlay "$WORKDIR/configure"						\
+		--squashfs-xz								\
+		--output "$WORKDIR/initramfs.img"
+
+	cp "/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
+	mv "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
+
+	cp -r "$WORKDIR/cruxmedia/crux/core" "$WORKDIR/bootimage/crux/core"
+
+	mkbootisofs "$WORKDIR/bootimage" > "$WORKDIR/bootimage.iso"
+
+	umount "$WORKDIR/cruxmedia"
+}
+
+main() {
+	BOOTIMG="$1"
+	WORKDIR="$2"
+
+	crux_gnulinux "$@"
+}
+
+main "$@"
