@@ -129,7 +129,7 @@ mkinitramfs() {
 				shift
 				;;
 			"--output")
-				OUTPUT="$2"
+				OUTPUT=$(realpath $2)
 				shift
 				;;
 			*)
@@ -177,6 +177,7 @@ mkinitramfs() {
 		""|"-") find . -print0 | cpio --null --create --format=newc --verbose ;;
 		*) find . -print0 | cpio --null --create --format=newc --verbose > $OUTPUT ;;
 	esac
+	cd $OLDPWD
 }
 
 mkinitramfs_copy_bin() {
