@@ -27,16 +27,16 @@ cruxstrap() {
 		shift
 	done
 
-	for dir in $PORTS; do
+	for dir in "$PORTS"; do
 		for prt in "$dir/"*; do
 			if test "$INSTALL" = ""; then
 				PORTS="$PORTS $prt"
 			else
-				for pkg in $INSTALL; do
+				for pkg in "$INSTALL"; do
 					if test -f "$pkg"; then
 						PORTS="$PORTS $pkg"
 					fi
-					case $prt in
+					case "$prt" in
 						*"/$pkg") PORTS="$PORTS $prt" ;;
 						*"/$pkg#"*) PORTS="$PORTS $prt" ;;
 					esac
@@ -45,12 +45,12 @@ cruxstrap() {
 		done
 	done
 
-	mkdir $CHROOT/var/lib/pkg -p
-	touch $CHROOT/var/lib/pkg/db
+	mkdir "$CHROOT/var/lib/pkg" -p
+	touch "$CHROOT/var/lib/pkg/db"
 
-	for prt in $PORTS; do
+	for prt in "$PORTS"; do
 		echo -n "Install: $prt"
-		pkgadd --root $CHROOT $prt
+		pkgadd --root "$CHROOT" "$prt"
 		if [ "$?" = "0" ]; then
 			echo " OK"
 		else
@@ -82,86 +82,70 @@ pkgadd() {
 	version="${version%%.pkg*}"
 	version="${version##*\#}"
 
-	echo "$name" >> $CHROOT/var/lib/pkg/db			|| return 1
-	echo "$version" >> $CHROOT/var/lib/pkg/db		|| return 1
-	tar xpvf $1 \
-		--xattrs-include='*.*' \
+	echo "$name" >> "$CHROOT/var/lib/pkg/db"		|| return 1
+	echo "$version" >> "$CHROOT/var/lib/pkg/db"		|| return 1
+	tar -xpvf "$1" \
+		--xattrs-include="*.*" \
 		--numeric-owner \
 		--directory $CHROOT >> $CHROOT/var/lib/pkg/db	|| return 1
-	echo "" >> $CHROOT/var/lib/pkg/db			|| return 1
+	echo "" >> "$CHROOT/var/lib/pkg/db"			|| return 1
 }
 
 mkinitramfs() {
-	DIRECTORY=""
-	STANDALONE_MODE=""
-	OVERLAY_MODE=""
+	CHROOT=""
+	IS_STANDALONE=""
+	IS_OVERLAY=""
 	OVERLAYS=""
 	COMMAND=""
-	OUTPUT=""
+	IMAGE=""
 
 	while test "$1"; do
 		case "$1" in
-			"--standalone")
-				STANDALONE_MODE="+"
-				;;
-			"--overlay")
-				OVERLAY_MODE="+"
-				OVERLAYS="$OVERLAYS $2"
-				shift
-				;;
-			"--command")
-				COMMAND="$2"
-				shift
-				;;
-			"--squashfs-xz")
-				COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -b 1048576 -comp xz -Xdict-size 100%"
-				;;
-			"--output")
-				OUTPUT=$2
-				shift
-				;;
+			"--standalone") IS_STANDALONE="yes" ;;
+			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
+			"--command") COMMAND="$2" ; shift ;;
+			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
+			"--output") IMAGE="$2" ; shift ;;
 			*)
-				if test "$DIRECTORY" = ""; then
-					DIRECTORY="$1"
+				if test "$CHROOT" = ""; then
+					CHROOT="$1"
 				fi
 				;;
 		esac
 		shift
 	done
 
-	if test "$DIRECTORY" = ""; then
-		DIRECTORY="."
+	if test "$CHROOT" = ""; then
+		CHROOT="."
 	fi
 
-	if [ "$STANDALONE_MODE" ]; then
-		OVERLAY_MODE=""
+	if [ "$IS_STANDALONE" ]; then
+		IS_OVERLAY=""
 	fi
 
-	if [ "$OVERLAY_MODE" ]; then
-		case $COMMAND in
+	if [ "$IS_OVERLAY" ]; then
+		case "$COMMAND" in
 			"") COMMAND="cp -a \${SOURCE} \${DESTINATION}" ;;
 		esac
 
-		mkinitramfs_copy_env $DIRECTORY
+		mkinitramfs_copy_env
 
 		NUM=0
-		for overlay in $OVERLAYS; do
+		for overlay in "$OVERLAYS"; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
-			DESTINATION="$DIRECTORY/overlays/$NUM-overlay"
+			DESTINATION="$CHROOT/overlays/$NUM-overlay"
 			eval "$COMMAND"
 		done
 
 	fi
 
-	echo $OUTPUT
-
-	cd $DIRECTORY
-	case $OUTPUT in
+	cd "$CHROOT"
+	case "$IMAGE" in
 		""|"-") find . -print0 | cpio -0o -H newc ;;
-		*) find . -print0 | cpio -0o -H newc > $OUTPUT ;;
+		*) find . -print0 | cpio -0o -H newc > "$IMAGE" ;;
 	esac
-	cd $OLDPWD
+	cd "$OLDPWD"
 }
 
 mkinitramfs_copy_bin() {
@@ -169,39 +153,37 @@ mkinitramfs_copy_bin() {
 	dst="$2"
 	dep=""
 
-	if [ "$dst" = "" ]; then
+	if test "$dst" = ""; then
 		dst="$src"
 	fi
 
-	if [ -e "$DIRECTORY$dst" ]; then
+	if test -f "$CHROOT$dst"; then
 		return
 	fi
 
-	install -D -m 0755 "$src" "$DIRECTORY$dst"
+	cp -a "$src" "$CHROOT$dst"
 
-	for dep in $(ldd "$src" | grep -o '/.* '); do
+	for dep in "$(ldd $src | grep -o '/.* ')"; do
 		mkinitramfs_copy_bin "$dep"
 	done
 }
 
 mkinitramfs_copy_env() {
-	DIRECTORY="$1"
-
 	for dir in proc sys dev run mnt overlay overlays; do
-		install -d -m 0755 $DIRECTORY/$dir
+		mkdir -p $CHROOT/$dir
 	done
 
 	for dev in console tty tty1 null; do
-		cp -a "/dev/$dev" "$DIRECTORY/dev/$dev"
+		cp -a "/dev/$dev" "$CHROOT/dev/$dev"
 	done
 
 	for bin in sh switch_root mount umount mkdir rmdir; do
 		mkinitramfs_copy_bin "$(which $bin)"
 	done
 
-	get_config_init > $DIRECTORY/init
+	get_config_init > "$CHROOT/init"
 
-	chmod +x $DIRECTORY/init
+	chmod +x "$CHROOT/init"
 }
 
 mkbootisofs() {
