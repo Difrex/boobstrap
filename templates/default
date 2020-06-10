@@ -1,13 +1,13 @@
 #! /bin/sh -
 
 crux_gnulinux() {
-	mkdir "$WORKDIR/cruxmedia"
-	mkdir "$WORKDIR/bootstrap"
-	mkdir "$WORKDIR/configure"
-	mkdir "$WORKDIR/initramfs"
-	mkdir "$WORKDIR/bootimage"
-	mkdir "$WORKDIR/bootimage/boot"
-	mkdir "$WORKDIR/bootimage/crux"
+	for dir in cruxmedia bootstrap initramfs bootimage; do
+		mkdir "$WORKDIR/$dir"
+	done
+
+	for dir in configure bootimage/boot boogimage/crux; do
+		mkdir "$WORKDIR/$dir"
+	done
 
 	mount "$BOOTIMG" "$WORKDIR/cruxmedia"
 
@@ -15,9 +15,26 @@ crux_gnulinux() {
 											\
 		--ports-dir "$WORKDIR/cruxmedia/crux/core"				\
 		--ports-dir "$WORKDIR/cruxmedia/crux/opt"				\
-		--ports-dir "$WORKDIR/cruxmedia/crux/xorg"
+		--ports-dir "/usr/ports"						\
+											\
+		"acl"			"inetutils"		"procps"		\
+		"attr"			"iproute2"		"rc"			\
+		"bash"			"iputils"		"readline"		\
+		"bzip2"			"kbd"			"shadow"		\
+		"coreutils"		"kmod"			"start-stop-daemon"	\
+		"dhcpcd"		"less"			"sysfsutils"		\
+		"e2fsprogs"		"libcap"		"sysklogd"		\
+		"elfutils"		"libdevmapper"		"sysvinit"		\
+		"eudev"			"libpcre"		"tar"			\
+		"file"			"linux"			"util-linux"		\
+		"filesystem"		"linux-pam"		"vi"			\
+		"findutils"		"lzo"			"wget"			\
+		"gawk"			"ncurses"		"which"			\
+		"glibc"			"openssh"		"xz"			\
+		"grep"			"openssl"		"zlib"			\
+		"gzip"			"pkgutils"
 
-	test -x "$WORKDIR/post-install" && "$WORKDIR/post-install"
+	ln -sf "bash" "$WORKDIR/bootstrap/bin/sh"
 
 	mkinitramfs "$WORKDIR/initramfs"						\
 											\
@@ -28,8 +45,6 @@ crux_gnulinux() {
 
 	cp "/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
 	mv "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
-
-	cp -r "$WORKDIR/cruxmedia/crux" "$WORKDIR/bootimage/crux"
 
 	mkbootisofs "$WORKDIR/bootimage" > "$WORKDIR/bootimage.iso"
 

@@ -2,67 +2,55 @@
 
 mkbootstrap() {
 	case "$1" in
-		"crux_gnulinux")
-			shift
-			;;
-		"archlinux_gnulinux"|"arch_gnulinux")
-			shift
-			pacstrap "$@"
-			exit 0
-			;;
-		"debian_gnulinux")
-			shift
-			debootstrap "$@"
-			exit 0
-			;;
-		*)
-			cat <<"EOF"
-crux_gnulinux
-archlinux_gnulinux (pacstrap)
-debian_gnulinux (debootstrap)
-EOF
-			exit 0
-			;;
+		"crux_gnulinux") shift ; cruxstrap "$@" ;;
+		"archlinux_gnulinux"|"arch_gnulinux") shift ; pacstrap "$@" ;;
+		"debian_gnulinux") shift ; debootstrap "$@" ;;
 	esac
+}
+
+cruxstrap() {
+	CHROOT=""
+	PORTS=""
+	INSTALL=""
 
 	while test "$1"; do
 		case "$1" in
-			"--ports-dir")
-				PORTS_TREE="$PORTS_TREE $2"
-				shift
-				;;
+			"--ports-dir") PORTS="$PORTS $2" ; shift ;;
 			*)
-				if [ -z "$DIRECTORY" ]; then
-					DIRECTORY="$1"
+				if test "$CHROOT" = ""; then
+					CHROOT="$1"
 				else
-					PORTS_LIST="$PORTS_LIST $1"
+					INSTALL="$INSTALL $1"
 				fi
 				;;
 		esac
 		shift
 	done
 
-	for dir in $PORTS_TREE; do
-		for prt in $dir/*; do
-			if [ "$PORTS_LIST" = "" ]; then
+	for dir in $PORTS; do
+		for prt in "$dir/"*; do
+			if test "$INSTALL" = ""; then
 				PORTS="$PORTS $prt"
 			else
-				for chk in $PORTS_LIST; do
+				for pkg in $INSTALL; do
+					if test -f "$pkg"; then
+						PORTS="$PORTS $pkg"
+					fi
 					case $prt in
-						*"/$chk") PORTS="$PORTS $prt" ;;
-						*"/$chk#"*) PORTS="$PORTS $prt" ;;
+						*"/$pkg") PORTS="$PORTS $prt" ;;
+						*"/$pkg#"*) PORTS="$PORTS $prt" ;;
 					esac
 				done
 			fi
 		done
 	done
 
-	mkdir $DIRECTORY/var/lib/pkg -p
-	touch $DIRECTORY/var/lib/pkg/db
+	mkdir $CHROOT/var/lib/pkg -p
+	touch $CHROOT/var/lib/pkg/db
 
 	for prt in $PORTS; do
 		echo -n "Install: $prt"
-		pkgadd --root $DIRECTORY $prt
+		pkgadd --root $CHROOT $prt
 		if [ "$?" = "0" ]; then
 			echo " OK"
 		else
@@ -78,14 +66,8 @@ pkgadd() {
 	# behavior like original pkgadd
 	while test "$2"; do
 		case "$1" in
-			"--root"|"-r")
-				CHROOT="$2"
-				shift
-				;;
-			*)
-				echo "invalid option $1"
-				exit 1
-				;;
+			"--root"|"-r") CHROOT="$2" ; shift ;;
+			*) echo "invalid option $1" ; exit 1 ;;
 		esac
 		shift
 	done
@@ -100,10 +82,13 @@ pkgadd() {
 	version="${version%%.pkg*}"
 	version="${version##*\#}"
 
-	echo "$name" >> $CHROOT/var/lib/pkg/db
-	echo "$version" >> $CHROOT/var/lib/pkg/db
-	tar xpvf $1 --xattrs-include='*.*' --numeric-owner -C $CHROOT >> $CHROOT/var/lib/pkg/db
-	echo "" >> $CHROOT/var/lib/pkg/db
+	echo "$name" >> $CHROOT/var/lib/pkg/db			|| return 1
+	echo "$version" >> $CHROOT/var/lib/pkg/db		|| return 1
+	tar xpvf $1 \
+		--xattrs-include='*.*' \
+		--numeric-owner \
+		--directory $CHROOT >> $CHROOT/var/lib/pkg/db	|| return 1
+	echo "" >> $CHROOT/var/lib/pkg/db			|| return 1
 }
 
 mkinitramfs() {
@@ -144,7 +129,7 @@ mkinitramfs() {
 		shift
 	done
 
-	if [ -z "$DIRECTORY" ]; then
+	if test "$DIRECTORY" = ""; then
 		DIRECTORY="."
 	fi
 
@@ -153,7 +138,6 @@ mkinitramfs() {
 	fi
 
 	if [ "$OVERLAY_MODE" ]; then
-
 		case $COMMAND in
 			"") COMMAND="cp -a \${SOURCE} \${DESTINATION}" ;;
 		esac
@@ -280,18 +264,20 @@ mkbootisofs() {
 		"$DIRECTORY" 2>/dev/null
 }
 
-boobstrap_run() {
+boobstrap_build() {
 	SHARE_DIR="/usr/share"
+	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"
 	COMMAND=""
 	INSTALL=""
 
+	ISO=""
+	DIR=""
+
 	while test "$1"; do
 		case "$1" in
-			"--iso") ISO="$2" ; shift ;;
-			"--dir") DIR="$2" ; shift ;;
 			"--template") TEMPLATE="$2" ; shift ;;
 			"--timeout") TIMEOUT="$2" ; shift ;;
 			*"="*) INSTALL="$INSTALL $1" ;;
@@ -300,27 +286,19 @@ boobstrap_run() {
 		shift
 	done
 
-	if test -z "$ISO"; then
+	if test "$ISO" = ""; then
 		for f in "crux.iso" "crux-3.5.iso" "crux-3.5-updated.iso"; do
 			if test -f "$f"; then
 				ISO="$f"
 			fi
 		done
+		if test "$ISO" = ""; then
+			exit 0
+		fi
 	fi
 
-	if test -z "$DIR"; then
+	if test "$DIR" = ""; then
 		DIR="$(mktemp -d -p $PWD)"
-	fi
-
-	if test "$COMMAND"; then
-		cat > "$DIR/rc.local" <<EOF
-#! /bin/sh -
-$COMMAND
-EOF
-		cat > "$DIR/post-install" <<EOF
-install -D "$DIR/rc.local" "$DIR/configure/etc/rc.local"
-EOF
-		chmod +x "$DIR/post-install"
 	fi
 
 	for i in $INSTALL; do
@@ -332,8 +310,10 @@ EOF
 	if test -f "$SHARE_DIR/templates/$TEMPLATE"; then
 		sh -c "$SHARE_DIR/templates/$TEMPLATE $ISO $DIR"
 	fi
+}
 
-	sh -c "$SHARE_DIR/qemu/qemu $DIR/bootimage.iso"
+boobstrap_run() {
+	boobstrap_build "$@"
 }
 
 main() {
@@ -347,15 +327,13 @@ main() {
 		fi
 
 		case "$PROGNAME" in
+			"build") boobstrap_build "$@" ;;
 			"run") boobstrap_run "$@" ;;
 			"start") boobstrap_start "$@" ;;
 			"stop") boobstrap_stop "$@" ;;
 			"list") boobstrap_list "$@" ;;
 			"--help"|"-h") rtfm ;;
 		esac
-
-		#echo "$PROGNAME: GNU/Linux ( o )( o )strapping"
-		#echo "$PROGNAME: $PROGNAME --help"
 	fi
 
 	case "$PROGNAME" in
