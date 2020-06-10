@@ -5,7 +5,7 @@ crux_gnulinux() {
 		mkdir "$WORKDIR/$dir"
 	done
 
-	for dir in configure bootimage/boot boogimage/crux; do
+	for dir in configure bootimage/boot bootimage/crux; do
 		mkdir "$WORKDIR/$dir"
 	done
 
@@ -40,7 +40,6 @@ crux_gnulinux() {
 											\
 		--overlay "$WORKDIR/bootstrap"						\
 		--overlay "$WORKDIR/configure"						\
-		--squashfs-xz								\
 		--output "$WORKDIR/initramfs.img"
 
 	cp "/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"

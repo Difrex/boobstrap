@@ -1,61 +1,10 @@
 #! /bin/sh -
 
-mkbootstrap() {
-	case "$1" in
-		"crux_gnulinux") shift ; cruxstrap "$@" ;;
-		"archlinux_gnulinux"|"arch_gnulinux") shift ; pacstrap "$@" ;;
-		"debian_gnulinux") shift ; debootstrap "$@" ;;
-	esac
-}
+lddtree() {
+	echo $1
 
-cruxstrap() {
-	CHROOT=""
-	PORTS=""
-	INSTALL=""
-
-	while test "$1"; do
-		case "$1" in
-			"--ports-dir") PORTS="$PORTS $2" ; shift ;;
-			*)
-				if test "$CHROOT" = ""; then
-					CHROOT="$1"
-				else
-					INSTALL="$INSTALL $1"
-				fi
-				;;
-		esac
-		shift
-	done
-
-	for dir in "$PORTS"; do
-		for prt in "$dir/"*; do
-			if test "$INSTALL" = ""; then
-				PORTS="$PORTS $prt"
-			else
-				for pkg in "$INSTALL"; do
-					if test -f "$pkg"; then
-						PORTS="$PORTS $pkg"
-					fi
-					case "$prt" in
-						*"/$pkg") PORTS="$PORTS $prt" ;;
-						*"/$pkg#"*) PORTS="$PORTS $prt" ;;
-					esac
-				done
-			fi
-		done
-	done
-
-	mkdir "$CHROOT/var/lib/pkg" -p
-	touch "$CHROOT/var/lib/pkg/db"
-
-	for prt in "$PORTS"; do
-		echo -n "Install: $prt"
-		pkgadd --root "$CHROOT" "$prt"
-		if [ "$?" = "0" ]; then
-			echo " OK"
-		else
-			echo " ERROR"
-		fi
+	for dep in $(ldd "$1" | grep -o '/.* '); do
+		lddtree "$dep"
 	done
 }
 
@@ -89,6 +38,66 @@ pkgadd() {
 		--numeric-owner \
 		--directory $CHROOT >> $CHROOT/var/lib/pkg/db	|| return 1
 	echo "" >> "$CHROOT/var/lib/pkg/db"			|| return 1
+}
+
+mkbootstrap() {
+	case "$1" in
+		"crux_gnulinux") shift ; cruxstrap "$@" ;;
+		"archlinux_gnulinux"|"arch_gnulinux") shift ; pacstrap "$@" ;;
+		"debian_gnulinux") shift ; debootstrap "$@" ;;
+	esac
+}
+
+cruxstrap() {
+	CHROOT=""
+	PORTS=""
+	PACKAGES=""
+	INSTALL=""
+
+	while test "$1"; do
+		case "$1" in
+			"--ports-dir") PORTS="$PORTS $2" ; shift ;;
+			*)
+				if test "$CHROOT" = ""; then
+					CHROOT="$1"
+				else
+					PACKAGES="$PACKAGES $1"
+				fi
+				;;
+		esac
+		shift
+	done
+
+	for dir in $PORTS; do
+		for prt in "$dir/"*; do
+			if test "$PACKAGES" = ""; then
+				INSTALL="$INSTALL $prt"
+			else
+				for pkg in $PACKAGES; do
+					if test -f "$pkg"; then
+						INSTALL="$INSTALL $pkg"
+					fi
+					case "$prt" in
+						*"/$pkg") INSTALL="$INSTALL $prt" ;;
+						*"/$pkg#"*) INSTALL="$INSTALL $prt" ;;
+					esac
+				done
+			fi
+		done
+	done
+
+	mkdir -p "$CHROOT/var/lib/pkg"
+	touch "$CHROOT/var/lib/pkg/db"
+
+	for prt in $INSTALL; do
+		echo -n "Install: $prt"
+		pkgadd --root "$CHROOT" "$prt"
+		if [ "$?" = "0" ]; then
+			echo " OK"
+		else
+			echo " ERROR"
+		fi
+	done
 }
 
 mkinitramfs() {
@@ -128,10 +137,29 @@ mkinitramfs() {
 			"") COMMAND="cp -a \${SOURCE} \${DESTINATION}" ;;
 		esac
 
-		mkinitramfs_copy_env
+		for dir in "proc" "sys" "dev" "run" "mnt" "overlay" "overlays"; do
+			mkdir -p $CHROOT/$dir
+		done
+
+		for dev in "console" "tty" "tty1" "null"; do
+			cp -a "/dev/$dev" "$CHROOT/dev/$dev"
+		done
+
+		for bin in "sh" "switch_root" "mount" "umount" "mkdir" "rmdir"; do
+			for dep in $(lddtree $(which $bin)); do
+				if test -f "$CHROOT$dep"; then
+					continue
+				fi
+				install -D "$dep" "$CHROOT$dep"
+			done
+		done
+
+		get_config_init > "$CHROOT/init"
+
+		chmod +x "$CHROOT/init"
 
 		NUM=0
-		for overlay in "$OVERLAYS"; do
+		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
 			DESTINATION="$CHROOT/overlays/$NUM-overlay"
@@ -146,44 +174,6 @@ mkinitramfs() {
 		*) find . -print0 | cpio -0o -H newc > "$IMAGE" ;;
 	esac
 	cd "$OLDPWD"
-}
-
-mkinitramfs_copy_bin() {
-	src="$1"
-	dst="$2"
-	dep=""
-
-	if test "$dst" = ""; then
-		dst="$src"
-	fi
-
-	if test -f "$CHROOT$dst"; then
-		return
-	fi
-
-	cp -a "$src" "$CHROOT$dst"
-
-	for dep in "$(ldd $src | grep -o '/.* ')"; do
-		mkinitramfs_copy_bin "$dep"
-	done
-}
-
-mkinitramfs_copy_env() {
-	for dir in proc sys dev run mnt overlay overlays; do
-		mkdir -p $CHROOT/$dir
-	done
-
-	for dev in console tty tty1 null; do
-		cp -a "/dev/$dev" "$CHROOT/dev/$dev"
-	done
-
-	for bin in sh switch_root mount umount mkdir rmdir; do
-		mkinitramfs_copy_bin "$(which $bin)"
-	done
-
-	get_config_init > "$CHROOT/init"
-
-	chmod +x "$CHROOT/init"
 }
 
 mkbootisofs() {
@@ -303,8 +293,9 @@ main() {
 
 	if test "$PROGNAME" = "boobstrap"; then
 
+		PROGNAME="$1"
+
 		if test "$2"; then
-			PROGNAME="$1"
 			shift
 		fi
 
@@ -359,15 +350,23 @@ mkdir -p $workdir
 
 for overlay in /overlays/*; do
 
-	overlay_mount="/overlay/${overlay##*/}"
+	if test -d "$overlay"; then
 
-	lowerdir="$overlay_mount:$lowerdir"
+		lowerdir="$overlay:$lowerdir"
 
-	mkdir -p $overlay_mount
+	else
+		overlay_mount="/overlay/${overlay##*/}"
 
-	mount -t squashfs -o ro $overlay $overlay_mount
+		lowerdir="$overlay_mount:$lowerdir"
+
+		mkdir -p $overlay_mount
+
+		mount -t squashfs -o ro $overlay $overlay_mount
+	fi
 
 done
+
+lowerdir="${lowerdir%?}"
 
 mount -t overlay -o ro,lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /mnt
 
