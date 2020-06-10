@@ -15,8 +15,6 @@ install: all
 	install -D -m 0755 boobstrap.in $(DESTDIR)$(BINDIR)/boobstrap
 	install -D -m 0755 qemu/qemu $(DESTDIR)$(SHAREDIR)/qemu/qemu
 	install -D -m 0755 templates/default $(DESTDIR)$(SHAREDIR)/templates/default
-	install -D -m 0755 templates/netboot $(DESTDIR)$(SHAREDIR)/templates/netboot
-	install -D -m 0755 templates/netinst $(DESTDIR)$(SHAREDIR)/templates/netinst
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkbootstrap
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkinitramfs
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkbootisofs
