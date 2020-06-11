@@ -158,13 +158,9 @@ mkinitramfs() {
 
 		NUM=0
 		for overlay in $OVERLAYS; do
-			if test "${overlay##*/}" = ""; then
-				overlay="${overlay%?}"
-			fi
 			NUM="$(($NUM + 10))"
-			NICE="${overlay##*/}"
 			SOURCE="$overlay"
-			DESTINATION="$CHROOT/overlays/$NUM-$NICE"
+			DESTINATION="$CHROOT/overlays/$NUM-$(basename $SOURCE)"
 			eval "$COMMAND"
 			case "$?" in
 				"0") continue ;;
