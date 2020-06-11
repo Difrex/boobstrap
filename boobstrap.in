@@ -161,6 +161,9 @@ mkinitramfs() {
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
 			DESTINATION="$CHROOT/overlays/$NUM-${overlay##*/}"
+			if test "$DESTINATION" = ""; then
+				DESTINATION="${DESTINATION##*/}"
+			fi
 			eval "$COMMAND"
 			case "$?" in
 				"0") continue ;;
@@ -172,7 +175,7 @@ mkinitramfs() {
 
 	cd "$CHROOT"
 	case "$IMAGE" in
-		""|"-") echo "Please add --output initrd.img" ;;
+		""|"-") find . -print0 | cpio -0o -H "newc" ;;
 		*) find . -print0 | cpio -0o -H "newc" > "$IMAGE" ;;
 	esac
 	cd "$OLDPWD"
@@ -181,14 +184,10 @@ mkinitramfs() {
 mkbootisofs() {
 	DIR=""
 	IMAGE=""
-	WITH_BIOS=""
-	WITH_UEFI=""
 
 	while test "$1"; do
 		case "$1" in
 			"--output") IMAGE="$2" ; shift ;;
-			"--with-bios") WITH_BIOS="$2" ; shift ;;
-			"--with-uefi") WITH_UEFI="$2" ; shift ;;
 			*)
 				if test "$DIR" = ""; then
 					DIR="$1"
@@ -198,94 +197,61 @@ mkbootisofs() {
 		shift
 	done
 
-	for dep in "locate" "grub-mkstandalone" "xorriso"; do
-		which "$dep" 1>"/dev/null" 2>"/dev/null"
-		case "$?" in
-			"0")
-				if test "$WITH_BIOS" = ""; then
-					WITH_BIOS="yes"
-				fi
-				;;
-			"127") echo "How do you live without which? Install. Please." ; return 1 ;;
-			*) echo "Install locate, xorriso, grub2 and grub2-efi. Please." ; return 1 ;;
-		esac
-	done
-
-	case "$(id -u)" in
-		"0")
-			if test "$WITH_UEFI" = ""; then
-				WITH_UEFI="yes"
-			fi
-			;;
-		*)
-			if test "$WITH_UEFI" = "yes"; then
-				echo "UEFI mount requires root (or install mtools). Please."
-			fi
-			WITH_UEFI="no"
-			;;
-	esac
-
 	if test "$DIR" = ""; then
-		echo "Directory? Please."
-		return 1
+		DIR="."
 	fi
 
 	if test -d "$DIR/boot"; then
 		mkdir "$DIR/boot/grub"
 		get_config_grub_cfg > "$DIR/boot/grub/grub.cfg"
-	else
-		echo "You forgot $DIR/boot/vmlinuz and $DIR/boot/initrd. Please."
-		return 1
 	fi
 
-	if test "$WITH_BIOS" = "yes"; then
-		WITH_BIOS_KEYS="-eltorito-boot boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table"
+	grub-mkstandalone \
+		--format="i386-pc" \
+		--output="$DIR/boot/grub/grub.raw" \
+		--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+		--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+		--locales="" \
+		--fonts="" \
+		--themes="" \
+		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
 
-		grub-mkstandalone \
-			--format="i386-pc" \
-			--output="$DIR/boot/grub/grub.raw" \
-			--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-			--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-			--locales="" \
-			--fonts="" \
-			--themes="" \
-			"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
+	cat "$(locate cdboot.img)" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img"
 
-		cat "$(locate cdboot.img)" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img"
-	fi
+	grub-mkstandalone \
+		--format="x86_64-efi" \
+		--output="$DIR/boot/grub/grub.efi" \
+		--modules="" \
+		--locales="" \
+		--fonts="" \
+		--themes="starfield" \
+		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
+		"/boot/grub/fonts/unifont.pf2=$(locate unifont.pf2)"
 
-	if test "$WITH_UEFI" = "yes"; then
-		WITH_UEFI_KEYS="-eltorito-alt-boot -e boot/grub/uefi.img -no-emul-boot -append_partition 2 0xef $DIR/boot/grub/uefi.img"
-
-		grub-mkstandalone \
-			--format="x86_64-efi" \
-			--output="$DIR/boot/grub/grub.efi" \
-			--modules="" \
-			--locales="" \
-			--fonts="" \
-			--themes="starfield" \
-			"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-			"/boot/grub/fonts/unifont.pf2=$(locate unifont.pf2)"
-
-		truncate -s "10MB" "$DIR/boot/grub/uefi.img"
-		mkdosfs "$DIR/boot/grub/uefi.img"
-		mkdir "$DIR/uefi"
-		mount "$DIR/boot/grub/uefi.img" "$DIR/uefi"
-		mkdir "$DIR/uefi/EFI"
-		mkdir "$DIR/uefi/EFI/BOOT"
-		cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI"
-		umount "$DIR/uefi"
-		rmdir "$DIR/uefi"
-	fi
+	truncate -s "10MB" "$DIR/boot/grub/uefi.img"
+	mkdosfs "$DIR/boot/grub/uefi.img"
+	mkdir "$DIR/uefi"
+	mount "$DIR/boot/grub/uefi.img" "$DIR/uefi"
+	mkdir "$DIR/uefi/EFI"
+	mkdir "$DIR/uefi/EFI/BOOT"
+	cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI"
+	umount "$DIR/uefi"
+	rmdir "$DIR/uefi"
 
 	xorriso -as "mkisofs" \
 		-iso-level 3 \
 		-full-iso9660-filenames \
-		--boot-catalog-hide \
 		--grub2-boot-info \
 		--grub2-mbr "$(locate boot_hybrid.img)" \
-		$WITH_BIOS_KEYS \
-		$WITH_UEFI_KEYS \
+		--boot-catalog-hide \
+		-eltorito-boot "boot/grub/bios.img" \
+		-no-emul-boot \
+		-boot-load-size 4 \
+		-boot-info-table \
+		-eltorito-alt-boot \
+		-e "boot/grub/uefi.img" \
+		-no-emul-boot \
+		-append_partition 2 "0xEF" "$DIR/boot/grub/uefi.img" \
 		-graft-points \
 		-quiet \
 		-output - \
@@ -318,14 +284,17 @@ boobstrap_build() {
 		DIR="$(mktemp -d -p $PWD)"
 	fi
 
+	echo "#! /bin/sh -" > "$DIR/post-install"
+	chmod +x "$DIR/post-install"
+
 	for i in $INSTALL; do
 		src="${i##*=}"
 		dst="$DIR/configure/${i%%=*}"
 		install -D "$src" "$dst"
 	done
 
-	if test -f "$SHARE_DIR/templates/$TEMPLATE"; then
-		sh -c "$SHARE_DIR/templates/$TEMPLATE $DIR"
+	if test -f "$SHARE_DIR/bootstrap-templates/$TEMPLATE"; then
+		sh -c "$SHARE_DIR/bootstrap-templates/$TEMPLATE $DIR"
 	fi
 }
 
@@ -456,5 +425,35 @@ initrd /boot/initrd
 }
 EOF
 }
+
+preflight_checks() {
+	case "$(id -u)" in
+		"0") ;;
+		*)
+			echo "must be run with root priveleges"
+			return 1
+			;;
+	esac
+
+	for dep in "locate" "grub-mkstandalone" "mkdosfs" "xorriso"; do
+		which "$dep" 1>"/dev/null" 2>"/dev/null"
+		case "$?" in
+			"0") ;;
+			*)
+				echo "check for:"
+				echo "* which"
+				echo "* locate"
+				echo "* dosfstools"
+				echo "* xorriso"
+				echo "* grub2"
+				echo "* grub2-efi"
+				echo "* squashfs-tools (optional)"
+				return 1
+				;;
+		esac
+	done
+}
+
+preflight_checks || exit 1
 
 main "$@"

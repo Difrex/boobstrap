@@ -2,10 +2,10 @@
 
 crux_gnulinux() {
 	for dir in bootstrap initramfs bootimage; do
-		mkdir "$WORKDIR/$dir"
+		mkdir "$DIR/$dir"
 	done
 
-	mkbootstrap crux_gnulinux "$WORKDIR/bootstrap"					\
+	mkbootstrap crux_gnulinux "$DIR/bootstrap"					\
 											\
 		--ports-dir "$PWD/ports"						\
 											\
@@ -25,27 +25,26 @@ crux_gnulinux() {
 		"gzip"			"openssl"		"zlib"			\
 		"inetutils"		"pkgutils"
 
+	ln -sf "bash" "$DIR/bootstrap/bin/sh"
 
-	ln -sf "bash" "$WORKDIR/bootstrap/bin/sh"
+	eval "$DIR/post-install"
 
-	mkinitramfs "$WORKDIR/initramfs"						\
+	mkinitramfs "$DIR/initramfs"							\
 											\
-		--overlay "$WORKDIR/bootstrap"						\
+		--overlay "$DIR/bootstrap"						\
 											\
-		--output "$WORKDIR/initramfs.img"
+		--output "$DIR/initramfs.img"
 
-	# xz -C "crc32" -T 0 -9 -e -v "$WORKDIR/initramfs.img"
-	# xz -C "crc32" -T 0 -e -v "$WORKDIR/initramfs.img"
-	# zstd -T0 --ultra -100500 -v "$WORKDIR/initramfs.img"
+	xz -C "crc32" -T 0 -e -1 -v "$DIR/initramfs.img"
 
-	install -D "$WORKDIR/bootstrap/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
-	install -D "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
+	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
+	install -D "$DIR/initramfs.img.xz" "$DIR/bootimage/boot/initrd"
 
-	mkbootisofs "$WORKDIR/bootimage" > "$WORKDIR/bootimage.iso"
+	mkbootisofs "$DIR/bootimage" > "$DIR/bootimage.iso"
 }
 
 main() {
-	WORKDIR="$1"
+	DIR="$1"
 
 	crux_gnulinux "$@"
 }
