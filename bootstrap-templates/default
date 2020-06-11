@@ -31,7 +31,8 @@ crux_gnulinux() {
 
 	mkinitramfs "$DIR/initramfs"							\
 											\
-		--overlay "$DIR/bootstrap"						\
+		--overlay "$DIR/bootstrap/"						\
+		--squashfs-xz \
 											\
 		--output "$DIR/initramfs.img"
 
