@@ -1,58 +1,51 @@
 #! /bin/sh -
 
 crux_gnulinux() {
-	for dir in cruxmedia bootstrap initramfs bootimage; do
+	for dir in bootstrap initramfs bootimage; do
 		mkdir "$WORKDIR/$dir"
 	done
-
-	for dir in configure bootimage/boot bootimage/crux; do
-		mkdir "$WORKDIR/$dir"
-	done
-
-	mount "$BOOTIMG" "$WORKDIR/cruxmedia"
 
 	mkbootstrap crux_gnulinux "$WORKDIR/bootstrap"					\
 											\
-		--ports-dir "$WORKDIR/cruxmedia/crux/core"				\
-		--ports-dir "$WORKDIR/cruxmedia/crux/opt"				\
-		--ports-dir "/usr/ports"						\
+		--ports-dir "$PWD/ports"						\
 											\
-		"acl"			"inetutils"		"procps"		\
-		"attr"			"iproute2"		"rc"			\
-		"bash"			"iputils"		"readline"		\
-		"bzip2"			"kbd"			"shadow"		\
-		"coreutils"		"kmod"			"start-stop-daemon"	\
-		"dhcpcd"		"less"			"sysfsutils"		\
-		"e2fsprogs"		"libcap"		"sysklogd"		\
-		"elfutils"		"libdevmapper"		"sysvinit"		\
+		"acl"			"iproute2"		"procps"		\
+		"attr"			"iputils"		"rc"			\
+		"bash"			"kbd"			"readline"		\
+		"bzip2"			"kmod"			"shadow"		\
+		"coreutils"		"less"			"start-stop-daemon"	\
+		"dhcpcd"		"libcap"		"sysklogd"		\
+		"e2fsprogs"		"libdevmapper"		"sysvinit"		\
 		"eudev"			"libpcre"		"tar"			\
 		"file"			"linux"			"util-linux"		\
 		"filesystem"		"linux-pam"		"vi"			\
 		"findutils"		"lzo"			"wget"			\
-		"gawk"			"ncurses"		"which"			\
-		"glibc"			"openssh"		"xz"			\
-		"grep"			"openssl"		"zlib"			\
-		"gzip"			"pkgutils"
+		"glibc"			"ncurses"		"which"			\
+		"grep"			"openssh"		"xz"			\
+		"gzip"			"openssl"		"zlib"			\
+		"inetutils"		"pkgutils"
+
 
 	ln -sf "bash" "$WORKDIR/bootstrap/bin/sh"
 
 	mkinitramfs "$WORKDIR/initramfs"						\
 											\
 		--overlay "$WORKDIR/bootstrap"						\
-		--overlay "$WORKDIR/configure"						\
+											\
 		--output "$WORKDIR/initramfs.img"
 
-	cp "/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
-	mv "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
+	# xz -C "crc32" -T 0 -9 -e -v "$WORKDIR/initramfs.img"
+	# xz -C "crc32" -T 0 -e -v "$WORKDIR/initramfs.img"
+	# zstd -T0 --ultra -100500 -v "$WORKDIR/initramfs.img"
+
+	install -D "$WORKDIR/bootstrap/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
+	install -D "$WORKDIR/initramfs.img" "$WORKDIR/bootimage/boot/initrd"
 
 	mkbootisofs "$WORKDIR/bootimage" > "$WORKDIR/bootimage.iso"
-
-	umount "$WORKDIR/cruxmedia"
 }
 
 main() {
-	BOOTIMG="$1"
-	WORKDIR="$2"
+	WORKDIR="$1"
 
 	crux_gnulinux "$@"
 }

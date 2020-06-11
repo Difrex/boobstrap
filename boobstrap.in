@@ -92,27 +92,27 @@ cruxstrap() {
 	for prt in $INSTALL; do
 		pkgadd --root "$CHROOT" "$prt"
 		case "$?" in
-			"0") echo "Install: $prt" ;;
-			*) echo "Error while install: $prt" ; return 1 ;;
+			"0") continue ;;
+			*) return 1 ;;
 		esac
 	done
 }
 
 mkinitramfs() {
 	CHROOT=""
+	IMAGE=""
 	IS_STANDALONE=""
 	IS_OVERLAY=""
 	OVERLAYS=""
 	COMMAND=""
-	IMAGE=""
 
 	while test "$1"; do
 		case "$1" in
+			"--output") IMAGE="$2" ; shift ;;
 			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
 			"--command") COMMAND="$2" ; shift ;;
 			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
-			"--output") IMAGE="$2" ; shift ;;
 			*)
 				if test "$CHROOT" = ""; then
 					CHROOT="$1"
@@ -161,11 +161,10 @@ mkinitramfs() {
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
 			DESTINATION="$CHROOT/overlays/$NUM-${overlay##*/}"
-			echo "Overlay: $overlay ..."
 			eval "$COMMAND"
 			case "$?" in
-				"0") echo "OK" ;;
-				*) echo "ERROR" ; return 1 ;;
+				"0") continue ;;
+				*) return 1 ;;
 			esac
 		done
 
@@ -180,67 +179,122 @@ mkinitramfs() {
 }
 
 mkbootisofs() {
-	DIRECTORY="$1"
+	DIR=""
+	IMAGE=""
+	WITH_BIOS=""
+	WITH_UEFI=""
 
-	mkdir -p $DIRECTORY/boot
-	mkdir -p $DIRECTORY/boot/grub
+	while test "$1"; do
+		case "$1" in
+			"--output") IMAGE="$2" ; shift ;;
+			"--with-bios") WITH_BIOS="$2" ; shift ;;
+			"--with-uefi") WITH_UEFI="$2" ; shift ;;
+			*)
+				if test "$DIR" = ""; then
+					DIR="$1"
+				fi
+				;;
+		esac
+		shift
+	done
 
-	get_config_grub_cfg > $DIRECTORY/boot/grub/grub.cfg
+	for dep in "locate" "grub-mkstandalone" "xorriso"; do
+		which "$dep" 1>"/dev/null" 2>"/dev/null"
+		case "$?" in
+			"0")
+				if test "$WITH_BIOS" = ""; then
+					WITH_BIOS="yes"
+				fi
+				;;
+			"127") echo "How do you live without which? Install. Please." ; return 1 ;;
+			*) echo "Install locate, xorriso, grub2 and grub2-efi. Please." ; return 1 ;;
+		esac
+	done
 
-	grub-mkstandalone \
-		--format=i386-pc \
-		--output=$DIRECTORY/boot/grub/grub.raw \
-		--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-		--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-		--locales="" \
-		--fonts="" \
-		--themes="" \
-		"/boot/grub/grub.cfg=$DIRECTORY/boot/grub/grub.cfg"
+	case "$(id -u)" in
+		"0")
+			if test "$WITH_UEFI" = ""; then
+				WITH_UEFI="yes"
+			fi
+			;;
+		*)
+			if test "$WITH_UEFI" = "yes"; then
+				echo "UEFI mount requires root (or install mtools). Please."
+			fi
+			WITH_UEFI="no"
+			;;
+	esac
 
-	cat $(locate cdboot.img) $DIRECTORY/boot/grub/grub.raw > $DIRECTORY/boot/grub/bios.img
+	if test "$DIR" = ""; then
+		echo "Directory? Please."
+		return 1
+	fi
 
-	grub-mkstandalone \
-		--format=x86_64-efi \
-		--output=$DIRECTORY/boot/grub/grub.efi \
-		--modules="" \
-		--locales="" \
-		--fonts="" \
-		--themes="starfield" \
-		"/boot/grub/grub.cfg=$DIRECTORY/boot/grub/grub.cfg" \
-		"/boot/grub/fonts/unifont.pf2=$(locate unifont.pf2)"
+	if test -d "$DIR/boot"; then
+		mkdir "$DIR/boot/grub"
+		get_config_grub_cfg > "$DIR/boot/grub/grub.cfg"
+	else
+		echo "You forgot $DIR/boot/vmlinuz and $DIR/boot/initrd. Please."
+		return 1
+	fi
 
-	temporarely_mountpoint=$(mktemp -d)
-	dd if=/dev/zero of=$DIRECTORY/boot/grub/uefi.img status=none count=10 bs=1M
-	mkdosfs $DIRECTORY/boot/grub/uefi.img
-	mount $DIRECTORY/boot/grub/uefi.img $temporarely_mountpoint
-	mkdir $temporarely_mountpoint/EFI
-	mkdir $temporarely_mountpoint/EFI/BOOT
-	cp $DIRECTORY/boot/grub/grub.efi $temporarely_mountpoint/EFI/BOOT/BOOTX64.EFI
-	umount $temporarely_mountpoint
-	rmdir $temporarely_mountpoint
+	if test "$WITH_BIOS" = "yes"; then
+		WITH_BIOS_KEYS="-eltorito-boot boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table"
 
-	xorriso -as mkisofs \
+		grub-mkstandalone \
+			--format="i386-pc" \
+			--output="$DIR/boot/grub/grub.raw" \
+			--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+			--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+			--locales="" \
+			--fonts="" \
+			--themes="" \
+			"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
+
+		cat "$(locate cdboot.img)" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img"
+	fi
+
+	if test "$WITH_UEFI" = "yes"; then
+		WITH_UEFI_KEYS="-eltorito-alt-boot -e boot/grub/uefi.img -no-emul-boot -append_partition 2 0xef $DIR/boot/grub/uefi.img"
+
+		grub-mkstandalone \
+			--format="x86_64-efi" \
+			--output="$DIR/boot/grub/grub.efi" \
+			--modules="" \
+			--locales="" \
+			--fonts="" \
+			--themes="starfield" \
+			"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
+			"/boot/grub/fonts/unifont.pf2=$(locate unifont.pf2)"
+
+		truncate -s "10MB" "$DIR/boot/grub/uefi.img"
+		mkdosfs "$DIR/boot/grub/uefi.img"
+		mkdir "$DIR/uefi"
+		mount "$DIR/boot/grub/uefi.img" "$DIR/uefi"
+		mkdir "$DIR/uefi/EFI"
+		mkdir "$DIR/uefi/EFI/BOOT"
+		cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI"
+		umount "$DIR/uefi"
+		rmdir "$DIR/uefi"
+	fi
+
+	xorriso -as "mkisofs" \
 		-iso-level 3 \
 		-full-iso9660-filenames \
-		-eltorito-boot boot/grub/bios.img \
-		-no-emul-boot \
-		-boot-load-size 4 \
-		-boot-info-table \
 		--boot-catalog-hide \
 		--grub2-boot-info \
-		--grub2-mbr $(locate boot_hybrid.img) \
-		-eltorito-alt-boot \
-		-e boot/grub/uefi.img \
-		-no-emul-boot \
-		-append_partition 2 0xef $DIRECTORY/boot/grub/uefi.img \
+		--grub2-mbr "$(locate boot_hybrid.img)" \
+		$WITH_BIOS_KEYS \
+		$WITH_UEFI_KEYS \
 		-graft-points \
 		-quiet \
 		-output - \
-		"$DIRECTORY"
+		"$DIR"
 }
 
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
+	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"
@@ -260,17 +314,6 @@ boobstrap_build() {
 		shift
 	done
 
-	if test "$ISO" = ""; then
-		for f in "crux.iso" "crux-3.5.iso" "crux-3.5-updated.iso"; do
-			if test -f "$f"; then
-				ISO="$f"
-			fi
-		done
-		if test "$ISO" = ""; then
-			return 1
-		fi
-	fi
-
 	if test "$DIR" = ""; then
 		DIR="$(mktemp -d -p $PWD)"
 	fi
@@ -282,7 +325,7 @@ boobstrap_build() {
 	done
 
 	if test -f "$SHARE_DIR/templates/$TEMPLATE"; then
-		sh -c "$SHARE_DIR/templates/$TEMPLATE $ISO $DIR"
+		sh -c "$SHARE_DIR/templates/$TEMPLATE $DIR"
 	fi
 }
 
