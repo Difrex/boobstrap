@@ -138,7 +138,7 @@ mkinitramfs() {
 			"") COMMAND="cp -a \${SOURCE} \${DESTINATION}" ;;
 		esac
 
-		for dir in "proc" "sys" "dev" "run" "mnt" "overlay" "overlays"; do
+		for dir in "proc" "sys" "dev" "run" "merged" "overlay" "overlays"; do
 			mkdir -p $CHROOT/$dir
 		done
 
@@ -215,7 +215,7 @@ mkbootisofs() {
 		"/boot/grub/fonts/unifont.pf2=$(locate unifont.pf2)"
 
 	temporarely_mountpoint=$(mktemp -d)
-	dd if=/dev/zero of=$DIRECTORY/boot/grub/uefi.img status=none count=16 bs=1M
+	dd if=/dev/zero of=$DIRECTORY/boot/grub/uefi.img status=none count=10 bs=1M
 	mkdosfs $DIRECTORY/boot/grub/uefi.img
 	mount $DIRECTORY/boot/grub/uefi.img $temporarely_mountpoint
 	mkdir $temporarely_mountpoint/EFI
@@ -336,17 +336,17 @@ get_config_init() {
 
 mount -t proc none /proc
 
-echo "0" > /proc/sys/kernel/printk
-
 mount -t sysfs none /sys
 
 mount -t devtmpfs devtmpfs /dev
 
 mount -t tmpfs none /run
 
+mount -t tmpfs tmpfs /merged
+
 mount -t tmpfs tmpfs /overlay
 
-lowerdir="/lower"
+lowerdir="/overlay/lower"
 upperdir="/overlay/upper"
 workdir="/overlay/work"
 
@@ -356,15 +356,15 @@ mkdir -p $workdir
 
 for overlay in /overlays/*; do
 
-	overlay_mount="/overlay/${overlay##*/}"
-
-	lowerdir="$overlay_mount:$lowerdir"
-
 	if test -d "$overlay"; then
 
-		mv "$overlay" "$overlay_mount"
+		mv -f $overlay/* "/merged"
 
 	else
+		overlay_mount="/overlay/${overlay##*/}"
+
+		lowerdir="$overlay_mount:$lowerdir"
+
 		mkdir -p $overlay_mount
 
 		mount -t squashfs -o ro $overlay $overlay_mount
@@ -372,16 +372,18 @@ for overlay in /overlays/*; do
 
 done
 
-lowerdir="${lowerdir%???????}"
-
-mount -t overlay -o lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /mnt
+if test "$lowerdir" = "/overlay/lower"; then
+	echo
+else
+	mount -t overlay -o lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /merged
+fi
 
 umount /proc
 umount /sys
 umount /dev
 umount /run
 
-exec switch_root /mnt /sbin/init
+exec switch_root /merged /sbin/init
 EOF
 }
 
