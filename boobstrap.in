@@ -91,7 +91,7 @@ cruxstrap() {
 
 	for prt in $INSTALL; do
 		pkgadd --root "$CHROOT" "$prt"
-		case "$?"
+		case "$?" in
 			"0") echo "Install: $prt" ;;
 			*) echo "Error while install: $prt" ; return 1 ;;
 		esac
@@ -163,7 +163,7 @@ mkinitramfs() {
 			DESTINATION="$CHROOT/overlays/$NUM-${overlay##*/}"
 			echo "Overlay: $overlay ..."
 			eval "$COMMAND"
-			case "$?"
+			case "$?" in
 				"0") echo "OK" ;;
 				*) echo "ERROR" ; return 1 ;;
 			esac

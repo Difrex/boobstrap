@@ -40,7 +40,6 @@ crux_gnulinux() {
 											\
 		--overlay "$WORKDIR/bootstrap"						\
 		--overlay "$WORKDIR/configure"						\
-		--squashfs-xz								\
 		--output "$WORKDIR/initramfs.img"
 
 	cp "/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
