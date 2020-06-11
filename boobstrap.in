@@ -261,7 +261,6 @@ mkbootisofs() {
 
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
-	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"
