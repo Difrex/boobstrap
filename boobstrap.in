@@ -257,7 +257,6 @@ mkbootisofs() {
 
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
-	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"
@@ -466,11 +465,13 @@ preflight_checks() {
 	if test "$GRUB_i386_CDBOOT" = ""; then
 		echo "cdboot.img none found, install grub-pc-bin or something."
 		echo "or specify file: env GRUB_i386_CDBOOT=./cdboot.img $0"
+		exit 1
 	fi
 
 	if test "$GRUB_i386_HYBRID" = ""; then
 		echo "boot_hybrid.img none found, install grub-pc-bin or something."
 		echo "or specify file: env GRUB_i386_HYBRID=./boot_hybrid.img $0"
+		exit 1
 	fi
 
 	for font in "/usr/lib/grub/fonts/"*".pf2" "/lib/grub/fonts/"*".pf2" "/usr/share/grub/"*".pf2"; do
