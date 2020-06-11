@@ -1,0 +1,15 @@
+# vim: ft=dockerfile
+
+DOMINANT Spoofing Sp00f1ng at Sp00f1ng dot COM
+
+MASTER default
+SLAVE /var/ftp/default.iso
+ROOM $(mktemp -d -p $PWD)
+
+DO sed -i "s/SERVICES=.*/SERVICES=(lo net crond sshd)/g" $DIR/etc/rc.conf
+
+PLUG $HOME/.ssh/id_rsa.pub=$DIR/root/.ssh/authorized_keys
+
+PLUG $PWD/autorun.sh=$DIR/etc/rc.local
+
+COME
