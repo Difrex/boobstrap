@@ -223,7 +223,7 @@ mkbootisofs() {
 		--fonts="" \
 		--themes="starfield" \
 		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-		"$GRUB_FONT_ANYFONT"
+		"/boot/grub/anyfont.pf2=$GRUB_FONT_ANYFONT"
 
 	truncate -s "10MB" "$DIR/boot/grub/uefi.img"
 	mkdosfs "$DIR/boot/grub/uefi.img"
@@ -476,7 +476,7 @@ preflight_checks() {
 
 	for font in "/usr/lib/grub/fonts/"*".pf2" "/lib/grub/fonts/"*".pf2" "/usr/share/grub/"*".pf2"; do
 		if test -f "$font"; then
-			GRUB_FONT_ANYFONT="/boot/grub/anyfont.pf2=$font"
+			GRUB_FONT_ANYFONT="$font"
 		fi
 	done
 }
