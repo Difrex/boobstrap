@@ -290,6 +290,26 @@ boobstrap_run() {
 }
 
 main() {
+	for dep in locate grub-mkstandalone xorriso mkdosfs mksquashfs; do
+		which $dep 1>/dev/null 2>/dev/null
+		if test "$?" = "0"; then
+			continue
+		else
+			echo "Missing installed package: $dep"
+			exit 1
+		fi
+	done
+
+	if test -d "/usr/lib/grub/x86_64-efi" && test -d "/lib/grub/x86_64-efi"; then
+		echo "Missing installed package: grub2-efi"
+		exit 1
+	fi
+
+	if test -d "/usr/lib/grub/i386-pc" && test -d "/lib/grub/i386-pc"; then
+		echo "Missing installed package: grub2"
+		exit 1
+	fi
+
 	PROGNAME="${0##*/}"
 
 	if test "$PROGNAME" = "boobstrap"; then
