@@ -86,18 +86,15 @@ cruxstrap() {
 		done
 	done
 
-	mkdir -p "$CHROOT/var/lib/pkg"
-	touch "$CHROOT/var/lib/pkg/db"
+	mkdir -p "$CHROOT/var/lib/pkg" || return 1
+	touch "$CHROOT/var/lib/pkg/db" || return 1
 
 	for prt in $INSTALL; do
-		echo -n "Install: $prt"
 		pkgadd --root "$CHROOT" "$prt"
-		if [ "$?" = "0" ]; then
-			echo " OK"
-		else
-			echo " ERROR"
-			return 1
-		fi
+		case "$?"
+			"0") echo "Install: $prt" ;;
+			*) echo "Error while install: $prt" ; return 1 ;;
+		esac
 	done
 }
 
@@ -166,12 +163,10 @@ mkinitramfs() {
 			DESTINATION="$CHROOT/overlays/$NUM-${overlay##*/}"
 			echo "Overlay: $overlay ..."
 			eval "$COMMAND"
-			if test "$?" = "0"; then
-				echo "OK"
-			else
-				echo "ERROR"
-				return 1
-			fi
+			case "$?"
+				"0") echo "OK" ;;
+				*) echo "ERROR" ; return 1 ;;
+			esac
 		done
 
 	fi
@@ -246,7 +241,6 @@ mkbootisofs() {
 
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
-	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"

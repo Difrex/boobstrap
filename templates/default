@@ -39,6 +39,8 @@ crux_gnulinux() {
 	mkinitramfs "$WORKDIR/initramfs"						\
 											\
 		--overlay "$WORKDIR/bootstrap"						\
+		--overlay "$WORKDIR/configure"						\
+		--squashfs-xz								\
 		--output "$WORKDIR/initramfs.img"
 
 	cp "/lib/modules/"*"/vmlinuz" "$WORKDIR/bootimage/boot/vmlinuz"
