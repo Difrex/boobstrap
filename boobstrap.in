@@ -303,6 +303,17 @@ main() {
 
 	if test "$PROGNAME" = "boobstrap"; then
 
+		if test "$@" = ""; then
+			while read KEY VALUE; do
+				case "$KEY" in
+					"MASTER") ;;
+					"DO") ;;
+					"PLUG") ;;
+					"COME") ;;
+				esac
+			done <&0
+		fi
+
 		PROGNAME="$1"
 
 		if test "$2"; then
@@ -317,6 +328,7 @@ main() {
 			"list") boobstrap_list "$@" ;;
 			"--help"|"-h") rtfm ;;
 		esac
+
 	fi
 
 	case "$PROGNAME" in
