@@ -213,7 +213,7 @@ mkbootisofs() {
 		--themes="" \
 		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
 
-	cat "$(locate cdboot.img)" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img"
+	cat "$GRUB_i386_CDBOOT" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img"
 
 	grub-mkstandalone \
 		--format="x86_64-efi" \
@@ -223,7 +223,7 @@ mkbootisofs() {
 		--fonts="" \
 		--themes="starfield" \
 		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-		"/boot/grub/fonts/unifont.pf2=$(locate unifont.pf2)"
+		"$GRUB_FONT_ANYFONT"
 
 	truncate -s "10MB" "$DIR/boot/grub/uefi.img"
 	mkdosfs "$DIR/boot/grub/uefi.img"
@@ -239,7 +239,7 @@ mkbootisofs() {
 		-iso-level 3 \
 		-full-iso9660-filenames \
 		--grub2-boot-info \
-		--grub2-mbr "$(locate boot_hybrid.img)" \
+		--grub2-mbr "$GRUB_i386_HYBRID" \
 		--boot-catalog-hide \
 		-eltorito-boot "boot/grub/bios.img" \
 		-no-emul-boot \
@@ -257,6 +257,7 @@ mkbootisofs() {
 
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
+	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"
@@ -408,7 +409,7 @@ insmod vbe
 insmod vga
 fi
 }
-if loadfont $prefix/fonts/unifont.pf2 ; then
+if loadfont $prefix/anyfont.pf2; then
 set gfxmode=auto
 load_video
 insmod gfxterm
@@ -438,14 +439,13 @@ preflight_checks() {
 			;;
 	esac
 
-	for dep in "locate" "grub-mkstandalone" "mkdosfs" "xorriso"; do
+	for dep in "grub-mkstandalone" "mkdosfs" "xorriso"; do
 		which "$dep" 1>"/dev/null" 2>"/dev/null"
 		case "$?" in
 			"0") ;;
 			*)
 				echo "check for:"
 				echo "* which"
-				echo "* locate"
 				echo "* dosfstools"
 				echo "* xorriso"
 				echo "* grub2"
@@ -454,6 +454,29 @@ preflight_checks() {
 				return 1
 				;;
 		esac
+	done
+
+	for dir in "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc"; do
+		if test -f "$dir/cdboot.img"; then
+			GRUB_i386_CDBOOT="$dir/cdboot.img"
+			GRUB_i386_HYBRID="$dir/boot_hybrid.img"
+		fi
+	done
+
+	if test "$GRUB_i386_CDBOOT" = ""; then
+		echo "cdboot.img none found, install grub-pc-bin or something."
+		echo "or specify file: env GRUB_i386_CDBOOT=./cdboot.img $0"
+	fi
+
+	if test "$GRUB_i386_HYBRID" = ""; then
+		echo "boot_hybrid.img none found, install grub-pc-bin or something."
+		echo "or specify file: env GRUB_i386_HYBRID=./boot_hybrid.img $0"
+	fi
+
+	for font in "/usr/lib/grub/fonts/"*".pf2" "/lib/grub/fonts/"*".pf2" "/usr/share/grub/"*".pf2"; do
+		if test -f "$font"; then
+			GRUB_FONT_ANYFONT="/boot/grub/anyfont.pf2=$font"
+		fi
 	done
 }
 
