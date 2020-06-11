@@ -160,7 +160,7 @@ mkinitramfs() {
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
-			DESTINATION="$CHROOT/overlays/$NUM-$(basename $SOURCE)"
+			DESTINATION="$CHROOT/overlays/$NUM-$(basename $overlay)"
 			eval "$COMMAND"
 			case "$?" in
 				"0") continue ;;
