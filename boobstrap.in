@@ -303,12 +303,6 @@ main() {
 
 	if test "$PROGNAME" = "boobstrap"; then
 
-		if test "$@" = ""; then
-			while read KEY VALUE; do
-				echo "$KEY $VALUE"
-			done <&0
-		fi
-
 		PROGNAME="$1"
 
 		if test "$2"; then
