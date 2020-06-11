@@ -1,7 +1,7 @@
 #! /bin/sh -
 
 lddtree() {
-	echo $1
+	echo "$1"
 
 	for dep in $(ldd "$1" | grep -o '/.* '); do
 		lddtree "$dep"
@@ -16,7 +16,7 @@ pkgadd() {
 	while test "$2"; do
 		case "$1" in
 			"--root"|"-r") CHROOT="$2" ; shift ;;
-			*) echo "invalid option $1" ; exit 1 ;;
+			*) echo "invalid option $1" ; return 1 ;;
 		esac
 		shift
 	done
@@ -31,13 +31,13 @@ pkgadd() {
 	version="${version%%.pkg*}"
 	version="${version##*\#}"
 
-	echo "$name" >> "$CHROOT/var/lib/pkg/db"		|| return 1
-	echo "$version" >> "$CHROOT/var/lib/pkg/db"		|| return 1
+	echo "$name" >> "$CHROOT/var/lib/pkg/db"			|| return 1
+	echo "$version" >> "$CHROOT/var/lib/pkg/db"			|| return 1
 	tar -xpvf "$1" \
 		--xattrs-include="*.*" \
 		--numeric-owner \
-		--directory $CHROOT >> $CHROOT/var/lib/pkg/db	|| return 1
-	echo "" >> "$CHROOT/var/lib/pkg/db"			|| return 1
+		--directory "$CHROOT" >> "$CHROOT/var/lib/pkg/db"	|| return 1
+	echo "" >> "$CHROOT/var/lib/pkg/db"				|| return 1
 }
 
 mkbootstrap() {
@@ -96,6 +96,7 @@ cruxstrap() {
 			echo " OK"
 		else
 			echo " ERROR"
+			return 1
 		fi
 	done
 }
@@ -128,11 +129,11 @@ mkinitramfs() {
 		CHROOT="."
 	fi
 
-	if [ "$IS_STANDALONE" ]; then
-		IS_OVERLAY=""
+	if test "$IS_STANDALONE" = "yes"; then
+		IS_OVERLAY="no"
 	fi
 
-	if [ "$IS_OVERLAY" ]; then
+	if test "$IS_OVERLAY" = "yes"; then
 		case "$COMMAND" in
 			"") COMMAND="cp -a \${SOURCE} \${DESTINATION}" ;;
 		esac
@@ -145,7 +146,7 @@ mkinitramfs() {
 			cp -a "/dev/$dev" "$CHROOT/dev/$dev"
 		done
 
-		for bin in "sh" "switch_root" "mount" "umount" "mkdir" "rmdir"; do
+		for bin in "sh" "switch_root" "mount" "umount" "mkdir" "rmdir" "mv"; do
 			for dep in $(lddtree $(which $bin)); do
 				if test -f "$CHROOT$dep"; then
 					continue
@@ -162,16 +163,23 @@ mkinitramfs() {
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
-			DESTINATION="$CHROOT/overlays/$NUM-overlay"
+			DESTINATION="$CHROOT/overlays/$NUM-${overlay##*/}"
+			echo "Overlay: $overlay ..."
 			eval "$COMMAND"
+			if test "$?" = "0"; then
+				echo "OK"
+			else
+				echo "ERROR"
+				return 1
+			fi
 		done
 
 	fi
 
 	cd "$CHROOT"
 	case "$IMAGE" in
-		""|"-") find . -print0 | cpio -0o -H newc ;;
-		*) find . -print0 | cpio -0o -H newc > "$IMAGE" ;;
+		""|"-") echo "Please add --output initrd.img" ;;
+		*) find . -print0 | cpio -0o -H "newc" > "$IMAGE" ;;
 	esac
 	cd "$OLDPWD"
 }
@@ -199,7 +207,6 @@ mkbootisofs() {
 	grub-mkstandalone \
 		--format=x86_64-efi \
 		--output=$DIRECTORY/boot/grub/grub.efi \
-		--install-modules="linux16 linux normal iso9660 serial memdisk test search all_video efi_gop efi_uga gfxterm gfxmenu png" \
 		--modules="" \
 		--locales="" \
 		--fonts="" \
@@ -208,7 +215,7 @@ mkbootisofs() {
 		"/boot/grub/fonts/unifont.pf2=$(locate unifont.pf2)"
 
 	temporarely_mountpoint=$(mktemp -d)
-	dd if=/dev/zero of=$DIRECTORY/boot/grub/uefi.img status=none count=8 bs=1M
+	dd if=/dev/zero of=$DIRECTORY/boot/grub/uefi.img status=none count=16 bs=1M
 	mkdosfs $DIRECTORY/boot/grub/uefi.img
 	mount $DIRECTORY/boot/grub/uefi.img $temporarely_mountpoint
 	mkdir $temporarely_mountpoint/EFI
@@ -234,7 +241,7 @@ mkbootisofs() {
 		-graft-points \
 		-quiet \
 		-output - \
-		"$DIRECTORY" 2>/dev/null
+		"$DIRECTORY"
 }
 
 boobstrap_build() {
@@ -266,7 +273,7 @@ boobstrap_build() {
 			fi
 		done
 		if test "$ISO" = ""; then
-			exit 0
+			return 1
 		fi
 	fi
 
@@ -290,26 +297,6 @@ boobstrap_run() {
 }
 
 main() {
-	for dep in locate grub-mkstandalone xorriso mkdosfs mksquashfs; do
-		which $dep 1>/dev/null 2>/dev/null
-		if test "$?" = "0"; then
-			continue
-		else
-			echo "Missing installed package: $dep"
-			exit 1
-		fi
-	done
-
-	if test -d "/usr/lib/grub/x86_64-efi" && test -d "/lib/grub/x86_64-efi"; then
-		echo "Missing installed package: grub2-efi"
-		exit 1
-	fi
-
-	if test -d "/usr/lib/grub/i386-pc" && test -d "/lib/grub/i386-pc"; then
-		echo "Missing installed package: grub2"
-		exit 1
-	fi
-
 	PROGNAME="${0##*/}"
 
 	if test "$PROGNAME" = "boobstrap"; then
@@ -341,13 +328,11 @@ rtfm() {
 	cat <<"EOF"
 WUT?
 EOF
-
-	exit 0
 }
 
 get_config_init() {
 	cat <<"EOF"
-#!/bin/sh
+#! /bin/sh -
 
 mount -t proc none /proc
 
@@ -371,15 +356,15 @@ mkdir -p $workdir
 
 for overlay in /overlays/*; do
 
+	overlay_mount="/overlay/${overlay##*/}"
+
+	lowerdir="$overlay_mount:$lowerdir"
+
 	if test -d "$overlay"; then
 
-		lowerdir="$overlay:$lowerdir"
+		mv "$overlay" "$overlay_mount"
 
 	else
-		overlay_mount="/overlay/${overlay##*/}"
-
-		lowerdir="$overlay_mount:$lowerdir"
-
 		mkdir -p $overlay_mount
 
 		mount -t squashfs -o ro $overlay $overlay_mount
@@ -387,9 +372,9 @@ for overlay in /overlays/*; do
 
 done
 
-lowerdir="${lowerdir%?}"
+lowerdir="${lowerdir%???????}"
 
-mount -t overlay -o ro,lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /mnt
+mount -t overlay -o lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /mnt
 
 umount /proc
 umount /sys
