@@ -305,15 +305,7 @@ main() {
 
 		if test "$@" = ""; then
 			while read KEY VALUE; do
-				case "$KEY" in
-					"DOMINANT") ;;
-					"MASTER") ;;
-					"SLAVE") ;;
-					"ROOM") ;;
-					"DO") ;;
-					"PLUG") ;;
-					"COME") ;;
-				esac
+				echo "$KEY $VALUE"
 			done <&0
 		fi
 
