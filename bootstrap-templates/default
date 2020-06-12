@@ -27,7 +27,7 @@ crux_gnulinux() {
 
 	ln -sf "bash" "$DIR/bootstrap/bin/sh"
 
-	mkbootstrap "export" "$DIR/bootstrap" > "$PWD/default.root"
+	mkbootstrap "export" "$DIR/bootstrap" > "$PWD/default.rootplug"
 
 	mkinitramfs "$DIR/initramfs"							\
 											\
