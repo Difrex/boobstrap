@@ -42,10 +42,58 @@ pkgadd() {
 
 mkbootstrap() {
 	case "$1" in
+		"import") shift ; importroot "$@" ;;
+		"export") shift ; exportroot "$@" ;;
 		"crux_gnulinux") shift ; cruxstrap "$@" ;;
 		"archlinux_gnulinux"|"arch_gnulinux") shift ; pacstrap "$@" ;;
 		"debian_gnulinux") shift ; debootstrap "$@" ;;
 	esac
+}
+
+importroot() {
+	DIR=""
+
+	while test "$1"; do
+		case "$1" in
+			*)
+				if test "$DIR" = ""; then
+					DIR="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+
+	if test -d "$DIR"; then
+		cd "$DIR"
+		cpio --extract --make-directories --format "newc" --quiet
+		cd "$OLDPWD"
+	else
+		echo "no such directory '$DIR'" >&2
+	fi
+}
+
+exportroot() {
+	DIR=""
+
+	while test "$1"; do
+		case "$1" in
+			*)
+				if test "$DIR" = ""; then
+					DIR="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+
+	if test -d "$DIR"; then
+		cd "$DIR"
+		find . -print0 | cpio --create --format "newc" --null --quiet
+		cd "$OLDPWD"
+	else
+		echo "no such directory '$DIR'" >&2
+	fi
 }
 
 cruxstrap() {
@@ -108,7 +156,7 @@ mkinitramfs() {
 
 	while test "$1"; do
 		case "$1" in
-			"--output") IMAGE="$2" ; shift ;;
+			"--output") IMAGE="$(realpath $2)" ; shift ;;
 			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
 			"--command") COMMAND="$2" ; shift ;;
@@ -257,6 +305,7 @@ mkbootisofs() {
 
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
+	SHARE_DIR="/mnt/boobstrap"
 
 	TEMPLATE="default"
 	TIMEOUT="0"

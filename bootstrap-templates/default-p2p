@@ -5,29 +5,13 @@ crux_gnulinux() {
 		mkdir "$DIR/$dir"
 	done
 
+	mkbootstrap "import" "$DIR/bootstrap" < "$PWD/default.root"
+
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
 		--ports-dir "$PWD/ports"						\
 											\
-		"acl"			"iproute2"		"procps"		\
-		"attr"			"iputils"		"rc"			\
-		"bash"			"kbd"			"readline"		\
-		"bzip2"			"kmod"			"shadow"		\
-		"coreutils"		"less"			"start-stop-daemon"	\
-		"dhcpcd"		"libcap"		"sysklogd"		\
-		"e2fsprogs"		"libdevmapper"		"sysvinit"		\
-		"eudev"			"libpcre"		"tar"			\
-		"file"			"linux"			"util-linux"		\
-		"filesystem"		"linux-pam"		"vi"			\
-		"findutils"		"lzo"			"wget"			\
-		"glibc"			"ncurses"		"which"			\
-		"grep"			"openssh"		"xz"			\
-		"gzip"			"openssl"		"zlib"			\
-		"inetutils"		"pkgutils"
-
-	ln -sf "bash" "$DIR/bootstrap/bin/sh"
-
-	mkbootstrap "export" "$DIR/bootstrap" > "$PWD/default.root"
+		"libevent"		"transmission"
 
 	mkinitramfs "$DIR/initramfs"							\
 											\
