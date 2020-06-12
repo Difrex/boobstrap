@@ -5,7 +5,7 @@ crux_gnulinux() {
 		mkdir "$DIR/$dir"
 	done
 
-	mkbootstrap "import" "$DIR/bootstrap" < "$PWD/default.root"
+	mkbootstrap "import" "$DIR/bootstrap" < "$PWD/default.rootplug"
 
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
