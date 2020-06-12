@@ -1,0 +1,68 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	for dir in bootstrap initramfs bootimage; do
+		mkdir "$DIR/$dir"
+	done
+
+	mkbootstrap "import" "$DIR/bootstrap" < "$PWD/default.rootplug"
+
+	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
+											\
+		--ports-dir "$PWD/ports"						\
+											\
+		"curl"			"kexec-tools"		"libevent"		\
+		"transmission"
+
+	cat > "$DIR/bootstrap/etc/rc.local" <<"EOF"
+#!/bin/bash
+#
+# /etc/rc.local: local multi-user startup script
+#
+
+if mount /boot.iso /mnt 2>/dev/null; then
+if test -f "/mnt/boot/vmlinuz"; then
+if test -f "/mnt/boot/initrd"; then
+kexec -l /mnt/boot/vmlinuz --initrd=/mnt/boot/initrd
+kexec -e
+exit 0
+fi
+fi
+fi
+
+MOTHERSHIP="$(/sbin/ip route | grep default | cut -d ' ' -f 3)"
+
+if wget -O "/boot.torrent" -T 10 "http://$MOTHERSHIP/boot.torrent"; then
+transmission-cli --download-dir "/" --finish "/etc/rc.local" "/boot.torrent" & disown
+elif wget -O "/boot.iso" -T 10 "http://$MOTHERSHIP/boot.iso"; then
+/etc/rc.local & disown
+exit 0
+fi
+
+sleep 60
+reboot
+
+# End of file
+EOF
+
+	mkinitramfs "$DIR/initramfs"							\
+											\
+		--overlay "$DIR/bootstrap"						\
+											\
+		--output "$DIR/initramfs.img"
+
+	# xz -C "crc32" -T 0 -e -5 -v "$DIR/initramfs.img"
+
+	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
+	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
+
+	mkbootisofs "$DIR/bootimage" > "$DIR/bootimage.iso"
+}
+
+main() {
+	DIR="$1"
+
+	crux_gnulinux "$@"
+}
+
+main "$@"

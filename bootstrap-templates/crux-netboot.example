@@ -35,10 +35,10 @@ crux_gnulinux() {
 											\
 		--output "$DIR/initramfs.img"
 
-	xz -C "crc32" -T 0 -e -5 -v "$DIR/initramfs.img"
+	# xz -C "crc32" -T 0 -e -9 -v "$DIR/initramfs.img"
 
 	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
-	install -D "$DIR/initramfs.img.xz" "$DIR/bootimage/boot/initrd"
+	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
 
 	mkbootisofs "$DIR/bootimage" > "$DIR/bootimage.iso"
 }
