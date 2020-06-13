@@ -436,7 +436,7 @@ main() {
 
 hi() {
 	if "$INDENT" = ""; then
-		export INDENT="* "
+		export INDENT="\* "
 	else
 		export INDENT="$INDENT  "
 	fi
