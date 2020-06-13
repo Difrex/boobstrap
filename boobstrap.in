@@ -300,7 +300,7 @@ mkbootisofs() {
 		--fonts="" \
 		--themes="starfield" \
 		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-		$GRUB_FONT_ANYFONT
+		$GRUB_FONT
 
 	truncate -s "10MB" "$DIR/boot/grub/uefi.img"
 	mkdosfs "$DIR/boot/grub/uefi.img"
