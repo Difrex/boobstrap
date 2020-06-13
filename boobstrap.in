@@ -20,7 +20,7 @@ pkgadd() {
 	while test "$2"; do
 		case "$1" in
 			"--root"|"-r") CHROOT="$2" ; shift ;;
-			*) echo "invalid option $1" | msg -2 ; return 1 ;;
+			*) echo "invalid option $1" 1>&2 ; return 1 ;;
 		esac
 		shift
 	done
@@ -40,7 +40,8 @@ pkgadd() {
 	tar -xpvf "$1" \
 		--xattrs-include="*.*" \
 		--numeric-owner \
-		--directory "$CHROOT" >> "$CHROOT/var/lib/pkg/db"	|| return 1
+		--directory "$CHROOT" >> "$CHROOT/var/lib/pkg/db" \
+		2>/dev/null						|| return 1
 	echo "" >> "$CHROOT/var/lib/pkg/db"				|| return 1
 }
 
@@ -67,16 +68,19 @@ importroot() {
 		shift
 	done
 	if test -d "$DIR"; then
+		echo "Import chroot [$DIR]" | msg -2
+		hi
 		cd "$DIR"
-		echo "load chroot configuration ..." | msg -2
-		cpio --extract --make-directories --format "newc" --quiet 2>"/dev/null"
+		cpio --extract --make-directories --format "newc" --quiet 2>/dev/null
 		case "$?" in
-			"0") echo "success." | msg -2 ;;
-			*) echo "failed." | msg -2 ; return 1 ;;
+			"0") echo "Import success." | msg -2 ;;
+			*) echo "Import failed." | msg -2 ; return 1 ;;
 		esac
 		cd "$OLDPWD"
+		lo
+		echo "Done [$DIR]" | msg -2
 	else
-		echo "no such directory '$DIR'" | msg -2
+		echo "No such directory [$DIR]" | msg -2
 	fi
 }
 
@@ -93,16 +97,19 @@ exportroot() {
 		shift
 	done
 	if test -d "$DIR"; then
+		echo "Export chroot [$DIR]" | msg -2
+		hi
 		cd "$DIR"
-		echo "save chroot configuration ..." | msg -2
-		find . -print0 | cpio --create --format "newc" --null --quiet 2>"/dev/null"
+		find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null
 		case "$?" in
-			"0") echo "success." | msg -2 ;;
-			*) echo "failed." | msg -2 ; return 1 ;;
+			"0") echo "Export success." | msg -2 ;;
+			*) echo "Export failed." | msg -2 ; return 1 ;;
 		esac
 		cd "$OLDPWD"
+		lo
+		echo "Done [$DIR]" | msg -2
 	else
-		echo "no such directory '$DIR'" | msg -2
+		echo "No such directory [$DIR]" | msg -2
 	fi
 }
 
@@ -127,51 +134,69 @@ cruxstrap() {
 		shift
 	done
 
-	for dir in $PORTS; do
-		for prt in "$dir/"*; do
-			if test "$PACKAGES" = ""; then
-				INSTALL="$INSTALL $prt"
-				continue
-			fi
-			for pkg in $PACKAGES; do
-				if test -f "$pkg"; then
-					INSTALL="$INSTALL $pkg"
-				else
-					case "$prt" in
-						*"/$pkg") INSTALL="$INSTALL $prt" ;;
-						*"/$pkg#"*) INSTALL="$INSTALL $prt" ;;
-						#*) IGNORED="$(echo $IGNORED $pkg | tr ' ' '\n' | uniq | sort | tr '\n' ' ')" ;;
-					esac
-				fi
+	echo "Bootstrapping [$CHROOT]" | msg -1
+	hi
+
+	if test "$PACKAGES" = ""; then
+		for dir in $PORTS; do
+			for prt in "$dir/"*; do
+				INSTALL="$INSTALL $(realpath $prt)"
 			done
 		done
-	done
-
-	if test "$IGNORED"; then
-		echo "these packages will be ignored because they doesn't exists." | msg -1
-		for prt in $IGNORED; do
-			echo "ignored: $prt" | msg -1
+	else
+		for pkg in $PACKAGES; do
+			if test -f "$pkg"; then
+				INSTALL="$INSTALL $(realpath $pkg)"
+			else
+				FAILURE="y"
+				for dir in $PORTS; do
+					for prt in "$dir/"*; do
+						case "$prt" in
+							*"/$pkg") INSTALL="$INSTALL $(realpath $prt)" ; FAILURE="" ;;
+							*"/$pkg#"*) INSTALL="$INSTALL $(realpath $prt)" ; FAILURE="" ;;
+						esac
+					done
+				done
+			fi
+			if test "$FAILURE" = "y"; then
+				IGNORED="$IGNORED $pkg"
+			fi
 		done
 	fi
 
+	if test "$IGNORED"; then
+		echo "Packages ignored because none found." | msg -2
+		hi
+		for prt in $IGNORED; do
+			echo "Ignored: $prt" | msg -2
+		done
+		lo
+	fi
+
 	if test "$INSTALL"; then
-		echo "installing chroot $CHROOT" | msg -1
+		echo "Packages to install: $(echo $INSTALL | wc -w)" | msg -1
+		hi
 
 		mkdir -p "$CHROOT/var/lib/pkg" || return 1
 		touch "$CHROOT/var/lib/pkg/db" || return 1
 
-		echo "installing packages." | msg -1
-
 		for prt in $INSTALL; do
+			name="$(basename $prt)"
+			name="${name%%#*}"
 			pkgadd --root "$CHROOT" "$prt"
 			case "$?" in
-				"0") echo "installed: $prt" | msg -1 ;;
-				*) echo "failed to install $prt. stopping." | msg -1 ; return 1 ;;
+				"0") echo "Install: $name" | msg -1 ;;
+				*) echo "Error: $name" | msg -1 ;;
 			esac
 		done
+
+		lo
+		echo "Done [$CHROOT]" | msg -1
 	else
-		echo "nothing to do." | msg -1
+		echo "No packages selected. Nothing to do." | msg -1
 	fi
+
+	lo
 }
 
 mkinitramfs() {
@@ -432,15 +457,11 @@ main() {
 }
 
 hi() {
-	if test "$INDENT" = ""; then
-		export INDENT="# "
-	else
-		export INDENT="$INDENT  "
-	fi
+	export ECHO_INDENT="$ECHO_INDENT  "
 }
 
 lo() {
-	export INDENT="${INDENT%??}"
+	export ECHO_INDENT="${ECHO_INDENT%??}"
 }
 
 msg() {
@@ -457,13 +478,13 @@ msg() {
 
 	if test "$STDOUT" = "yes"; then
 		while read input; do
-			echo "$INDENT$input" >&1
+			echo "$ECHO_INDENT$input" >&1
 		done
 	fi
 
 	if test "$STDERR" = "yes"; then
 		while read input; do
-			echo "$INDENT$input" >&2
+			echo "$ECHO_INDENT$input" >&2
 		done
 	fi
 }
