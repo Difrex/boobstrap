@@ -69,7 +69,7 @@ importroot() {
 	if test -d "$DIR"; then
 		cd "$DIR"
 		echo "load chroot configuration ..." | msg -2
-		cpio --extract --make-directories --format "newc" --quiet
+		cpio --extract --make-directories --format "newc" --quiet 2>"/dev/null"
 		case "$?" in
 			"0") echo "success." | msg -2 ;;
 			*) echo "failed." | msg -2 ; return 1 ;;
@@ -95,7 +95,7 @@ exportroot() {
 	if test -d "$DIR"; then
 		cd "$DIR"
 		echo "save chroot configuration ..." | msg -2
-		find . -print0 | cpio --create --format "newc" --null --quiet
+		find . -print0 | cpio --create --format "newc" --null --quiet 2>"/dev/null"
 		case "$?" in
 			"0") echo "success." | msg -2 ;;
 			*) echo "failed." | msg -2 ; return 1 ;;
@@ -199,6 +199,9 @@ mkinitramfs() {
 		shift
 	done
 
+	echo "Generate initramfs image" | msg -2
+	hi
+
 	if test "$CHROOT" = ""; then
 		CHROOT="."
 	fi
@@ -208,17 +211,19 @@ mkinitramfs() {
 	fi
 
 	if test "$IS_OVERLAY" = "yes"; then
-		case "$COMMAND" in
-			"") COMMAND="cp -a \${SOURCE} \${DESTINATION}" ;;
-		esac
+		echo "Creating system directories" | msg -2
 
 		for dir in "proc" "sys" "dev" "run" "merged" "overlay" "overlays"; do
 			mkdir -p $CHROOT/$dir
 		done
 
+		echo "Copying device files" | msg -2
+
 		for dev in "console" "tty" "tty1" "null"; do
 			cp -a "/dev/$dev" "$CHROOT/dev/$dev"
 		done
+
+		echo "Installing executable files" | msg -2
 
 		for bin in "sh" "switch_root" "mount" "umount" "mkdir" "rmdir" "mv"; do
 			for dep in $(lddtree $(which $bin)); do
@@ -229,19 +234,27 @@ mkinitramfs() {
 			done
 		done
 
+		echo "Creating init" | msg -2
+
 		get_config_init > "$CHROOT/init"
 
 		chmod +x "$CHROOT/init"
 
 		NUM=0
+
+		if test "$COMMAND" = ""; then
+			COMMAND="cp -a \${SOURCE} \${DESTINATION}"
+		fi
+
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
 			DESTINATION="$CHROOT/overlays/$NUM-$(basename $overlay)"
+			echo "Command $COMMAND" | msg -2
 			eval "$COMMAND"
 			case "$?" in
-				"0") continue ;;
-				*) return 1 ;;
+				"0") echo "Command OK" | msg -2 ;;
+				*) echo "Command ERROR" | msg -2 ; return 1 ;;
 			esac
 		done
 
@@ -253,6 +266,9 @@ mkinitramfs() {
 		*) find . -print0 | cpio -0o -H "newc" --quiet > "$IMAGE" ;;
 	esac
 	cd "$OLDPWD"
+
+	lo
+	echo "Generate initramfs done" | msg -2
 }
 
 mkbootisofs() {
@@ -362,14 +378,14 @@ boobstrap_build() {
 	done
 
 	if test -f "$SHARE_DIR/bootstrap-templates/$TEMPLATE"; then
-		export INDENT="$INDENT  "
+		hi
 		echo "Building configuration [$TEMPLATE]" | msg -1
 		sh -c "$SHARE_DIR/bootstrap-templates/$TEMPLATE $DIR"
 		case "$?" in
 			"0") echo "Done [$TEMPLATE]" | msg -1 ;;
 			*) echo "Failed [$TEMPLATE]" | msg -2 ;;
 		esac
-		INDENT="${INDENT%??}"
+		lo
 	fi
 }
 
@@ -404,6 +420,14 @@ main() {
 		"mkinitramfs") mkinitramfs "$@" ;;
 		"mkbootisofs") mkbootisofs "$@" ;;
 	esac
+}
+
+hi() {
+	export INDENT="$INDENT  "
+}
+
+lo() {
+	export INDENT="${INDENT%??}"
 }
 
 msg() {
@@ -487,7 +511,7 @@ function load_video {
 		insmod vga
 	fi
 }
-if loadfont $prefix/anyfont.pf2; then
+if loadfont $prefix/font.pf2; then
 	set gfxmode=auto
 	load_video
 	insmod gfxterm
@@ -560,7 +584,7 @@ preflight_checks() {
 		echo "or specify file: export GRUB_FONT=./unicode.pf2" | msg -2
 		echo "continue to running without any font." | msg -2
 	else
-		GRUB_FONT="/boot/grub/anyfont.pf2=$GRUB_FONT"
+		GRUB_FONT="/boot/grub/font.pf2=$GRUB_FONT"
 	fi
 }
 
