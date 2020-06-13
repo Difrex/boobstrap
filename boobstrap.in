@@ -380,6 +380,8 @@ boobstrap_build() {
 		TEMPLATE="/usr/share/boobstrap/bootstrap-templates/$TEMPLATE"
 	elif test -f "$TEMPLATE"; then
 		TEMPLATE="$(realpath $TEMPLATE)"
+	elif test "$TEMPLATE" = ""; then
+		TEMPLATE="/usr/share/boobstrap/bootstrap-templates/default.bbuild"
 	else
 		echo "no such file" | msg -2
 	fi
