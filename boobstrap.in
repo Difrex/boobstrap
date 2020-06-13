@@ -224,7 +224,7 @@ mkinitramfs() {
 		shift
 	done
 
-	echo "Start generate initramfs image" | msg -2
+	echo "Generating initramfs [$CHROOT]" | msg -2
 	hi
 
 	if test "$CHROOT" = ""; then
@@ -236,30 +236,50 @@ mkinitramfs() {
 	fi
 
 	if test "$IS_OVERLAY" = "yes"; then
+
 		echo "Creating system directories" | msg -2
-
+		hi
 		for dir in "proc" "sys" "dev" "run" "merged" "overlay" "overlays"; do
-			mkdir -p $CHROOT/$dir
+			echo "[/$dir]" | msg -2
+			mkdir -p $CHROOT/$dir 2>/dev/null
 		done
+		lo
 
-		echo "Copying device files" | msg -2
-
+		echo "Copying devices" | msg -2
+		hi
 		for dev in "console" "tty" "tty1" "null"; do
-			cp -a "/dev/$dev" "$CHROOT/dev/$dev"
+			echo "[/dev/$dev]" | msg -2
+			cp -a "/dev/$dev" "$CHROOT/dev/$dev" 2>/dev/null
 		done
+		lo
 
-		echo "Installing executable files" | msg -2
-
+		echo "Copying system files" | msg -2
+		hi
 		for bin in "sh" "switch_root" "mount" "umount" "mkdir" "rmdir" "mv"; do
+
+			echo "[$bin]" | msg -2
+
+			deps=""
 			for dep in $(lddtree $(which $bin)); do
+				deps="$deps $dep"
+
 				if test -f "$CHROOT$dep"; then
 					continue
 				fi
+
 				install -D "$dep" "$CHROOT$dep"
 			done
-		done
 
-		echo "Creating init" | msg -2
+			deps=$(echo $deps | tr ' ' '\n' | sort | uniq | tr '\n' ' ')
+			hi
+			for dep in $deps; do
+				echo "$dep" | msg -2
+			done
+			lo
+		done
+		lo
+
+		echo "Creating init [/init]" | msg -2
 
 		get_config_init > "$CHROOT/init"
 
@@ -271,24 +291,24 @@ mkinitramfs() {
 			COMMAND="cp -a \${SOURCE} \${DESTINATION}"
 		fi
 
-		echo "Executing custom commands" | msg -2
+		echo "Prepare overlays" | msg -2
 		hi
-
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
 			DESTINATION="$CHROOT/overlays/$NUM-$(basename $overlay)"
-			echo "Command $COMMAND" | msg -2
+			echo "Do: $COMMAND" | msg -2
 			eval "$COMMAND" 1>&2
+			hi
 			case "$?" in
-				"0") echo "Command OK" | msg -2 ;;
-				*) echo "Command ERROR" | msg -2 ;;
+				"0") echo "OK" | msg -2 ;;
+				*) echo "Failure [$?]" | msg -2 ;;
 			esac
+			lo
 		done
-
 		lo
-		echo "Executing done" | msg -2
 
+		echo "Overlays done" | msg -2
 	fi
 
 	cd "$CHROOT"
@@ -299,7 +319,7 @@ mkinitramfs() {
 	cd "$OLDPWD"
 
 	lo
-	echo "Generate initramfs image done" | msg -2
+	echo "Done [$CHROOT]" | msg -2
 }
 
 mkbootisofs() {
