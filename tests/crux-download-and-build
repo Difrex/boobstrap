@@ -1,0 +1,39 @@
+#! /bin/sh -
+
+getsources() {
+	wget -T 5 -O "$PWD/crux.iso" "http://dl.voglea.com/dist/crux_gnulinux/amd64/vendor/crux-3.5-updated.iso"
+}
+
+trysources() {
+	for iso in "$PWD/crux.iso" "$PWD/crux-3.5.iso" "$PWD/crux-3.5-updated.iso"; do
+		ISO="$iso"
+	done
+
+	if test "$ISO" = ""; then
+		return 1
+	fi
+}
+
+mountmedia() {
+	if mountpoint -q "$PWD/cruxmedia"; then
+		return 0
+	fi
+
+	mkdir -p "$PWD/cruxmedia"
+
+	mount "$ISO" "$PWD/cruxmedia" || return 1
+}
+
+runtest() {
+	trysources || getsources && trysources || echo "TEST FAILED: wget http://ftp.morpheus.net/pub/linux/crux/latest/iso/crux-3.5.iso" && return 1
+
+	mountmedia || echo "TEST FAILED: mount crux-3.5.iso $PWD/cruxmedia" && return 1
+
+	boobstrap build --template "default.bbuild" || echo "TEST FAILED: boobstrap build --template default.bbuild" && return 1
+}
+
+main() {
+	runtest && echo "TEST PASSED!" || echo "TEST FAILED."
+}
+
+main "$@"
