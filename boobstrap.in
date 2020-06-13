@@ -155,7 +155,7 @@ cruxstrap() {
 	fi
 
 	if test "$INSTALL"; then
-		echo "installing chroot: $CHROOT" | msg -1
+		echo "installing chroot $CHROOT" | msg -1
 
 		mkdir -p "$CHROOT/var/lib/pkg" || return 1
 		touch "$CHROOT/var/lib/pkg/db" || return 1
@@ -199,7 +199,7 @@ mkinitramfs() {
 		shift
 	done
 
-	echo "Generate initramfs image" | msg -2
+	echo "Start generate initramfs image" | msg -2
 	hi
 
 	if test "$CHROOT" = ""; then
@@ -246,17 +246,23 @@ mkinitramfs() {
 			COMMAND="cp -a \${SOURCE} \${DESTINATION}"
 		fi
 
+		echo "Executing custom commands" | msg -2
+		hi
+
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
 			DESTINATION="$CHROOT/overlays/$NUM-$(basename $overlay)"
 			echo "Command $COMMAND" | msg -2
-			eval "$COMMAND"
+			eval "$COMMAND" 1>&2
 			case "$?" in
 				"0") echo "Command OK" | msg -2 ;;
-				*) echo "Command ERROR" | msg -2 ; return 1 ;;
+				*) echo "Command ERROR" | msg -2 ;;
 			esac
 		done
+
+		lo
+		echo "Executing done" | msg -2
 
 	fi
 
@@ -268,7 +274,7 @@ mkinitramfs() {
 	cd "$OLDPWD"
 
 	lo
-	echo "Generate initramfs done" | msg -2
+	echo "Generate initramfs image done" | msg -2
 }
 
 mkbootisofs() {
@@ -290,6 +296,9 @@ mkbootisofs() {
 	if test "$DIR" = ""; then
 		DIR="."
 	fi
+
+	echo "Creating bootable iso image" | msg -2
+	hi
 
 	if test -d "$DIR/boot"; then
 		mkdir "$DIR/boot/grub"
@@ -346,6 +355,9 @@ mkbootisofs() {
 		-quiet \
 		-output - \
 		"$DIR" 2>"/dev/null"
+
+	lo
+	echo "Bootable iso image done" | msg -2
 }
 
 boobstrap_build() {
