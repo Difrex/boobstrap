@@ -1,20 +1,27 @@
 #! /bin/sh -
 
 crux_gnulinux() {
-	for dir in bootstrap initramfs bootimage; do
+	for dir in bootstrap initramfs bootimage configure; do
 		mkdir "$DIR/$dir"
 	done
+
+	mkdir -p "$DIR/configure/etc"
+	cp -a "/etc/rc.local" "$DIR/configure/etc/rc.local"
+	cp -a "/etc/pkgmk.conf" "$DIR/configure/etc/pkgmk.conf"
+	cp -a "/etc/asound.conf" "$DIR/configure/etc/asound.conf"
+
+	mkdir -p "$DIR/configure/usr/share/grub/themes"
+	cp -a "/usr/share/grub/themes/"* "$DIR/configure/usr/share/grub/themes"
 
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
 		--ports-dir "/mnt/cruxports"						\
 											\
-		"alsa-utils"		"kexec-tools"		"rxvt-unicode"		\
-		"apulse"		"libsdl2"		"squashfs-tools"	\
-		"ffmpeg"		"libxkbcommon"		"xorg-font-dejavu-ttf"	\
-		"fvwm"			"linux"			"xorriso"		\
-		"git"			"python"					\
-		"htop"			"qemu"						\
+		"alsa-utils"		"htop"			"qemu"			\
+		"apulse"		"kexec-tools"		"rxvt-unicode"		\
+		"ffmpeg"		"libsdl2"		"squashfs-tools"	\
+		"fvwm"			"libxkbcommon"		"xorg-font-dejavu-ttf"	\
+		"git"			"linux"			"xorriso"		\
 											\
 		--ports-dir "/mnt/cruxmedia/crux/core"					\
 											\
@@ -130,6 +137,9 @@ crux_gnulinux() {
 	mkinitramfs "$DIR/initramfs"							\
 											\
 		--overlay "$DIR/bootstrap"						\
+		--overlay "$DIR/configure"						\
+		--overlay "/root"							\
+		--overlay "/home"							\
 											\
 		--squashfs-xz								\
 											\

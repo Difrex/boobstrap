@@ -1,6 +1,10 @@
 #! /bin/sh -
 
 lddtree() {
+	if test "$1" = ""; then
+		return 0
+	fi
+
 	echo "$1"
 
 	for dep in $(ldd "$1" | grep -o '/.* '); do
@@ -16,7 +20,7 @@ pkgadd() {
 	while test "$2"; do
 		case "$1" in
 			"--root"|"-r") CHROOT="$2" ; shift ;;
-			*) echo "invalid option $1" ; return 1 ;;
+			*) echo "invalid option $1" | msg -2 ; return 1 ;;
 		esac
 		shift
 	done
@@ -64,10 +68,15 @@ importroot() {
 	done
 	if test -d "$DIR"; then
 		cd "$DIR"
+		echo "load chroot configuration ..." | msg -2
 		cpio --extract --make-directories --format "newc" --quiet
+		case "$?" in
+			"0") echo "success." | msg -2 ;;
+			*) echo "failed." | msg -2 ; return 1 ;;
+		esac
 		cd "$OLDPWD"
 	else
-		echo "no such directory '$DIR'" >&2
+		echo "no such directory '$DIR'" | msg -2
 	fi
 }
 
@@ -85,10 +94,15 @@ exportroot() {
 	done
 	if test -d "$DIR"; then
 		cd "$DIR"
+		echo "save chroot configuration ..." | msg -2
 		find . -print0 | cpio --create --format "newc" --null --quiet
+		case "$?" in
+			"0") echo "success." | msg -2 ;;
+			*) echo "failed." | msg -2 ; return 1 ;;
+		esac
 		cd "$OLDPWD"
 	else
-		echo "no such directory '$DIR'" >&2
+		echo "no such directory '$DIR'" | msg -2
 	fi
 }
 
@@ -97,6 +111,7 @@ cruxstrap() {
 	PORTS=""
 	PACKAGES=""
 	INSTALL=""
+	IGNORED=""
 
 	while test "$1"; do
 		case "$1" in
@@ -116,30 +131,47 @@ cruxstrap() {
 		for prt in "$dir/"*; do
 			if test "$PACKAGES" = ""; then
 				INSTALL="$INSTALL $prt"
-			else
-				for pkg in $PACKAGES; do
-					if test -f "$pkg"; then
-						INSTALL="$INSTALL $pkg"
-					fi
+				continue
+			fi
+			for pkg in $PACKAGES; do
+				if test -f "$pkg"; then
+					INSTALL="$INSTALL $pkg"
+				else
 					case "$prt" in
 						*"/$pkg") INSTALL="$INSTALL $prt" ;;
 						*"/$pkg#"*) INSTALL="$INSTALL $prt" ;;
+						#*) IGNORED="$(echo $IGNORED $pkg | tr ' ' '\n' | uniq | sort | tr '\n' ' ')" ;;
 					esac
-				done
-			fi
+				fi
+			done
 		done
 	done
 
-	mkdir -p "$CHROOT/var/lib/pkg" || return 1
-	touch "$CHROOT/var/lib/pkg/db" || return 1
+	if test "$IGNORED"; then
+		echo "these packages will be ignored because they doesn't exists." | msg -1
+		for prt in $IGNORED; do
+			echo "ignored: $prt" | msg -1
+		done
+	fi
 
-	for prt in $INSTALL; do
-		pkgadd --root "$CHROOT" "$prt"
-		case "$?" in
-			"0") continue ;;
-			*) return 1 ;;
-		esac
-	done
+	if test "$INSTALL"; then
+		echo "installing chroot: $CHROOT" | msg -1
+
+		mkdir -p "$CHROOT/var/lib/pkg" || return 1
+		touch "$CHROOT/var/lib/pkg/db" || return 1
+
+		echo "installing packages." | msg -1
+
+		for prt in $INSTALL; do
+			pkgadd --root "$CHROOT" "$prt"
+			case "$?" in
+				"0") echo "installed: $prt" | msg -1 ;;
+				*) echo "failed to install $prt. stopping." | msg -1 ; return 1 ;;
+			esac
+		done
+	else
+		echo "nothing to do." | msg -1
+	fi
 }
 
 mkinitramfs() {
@@ -156,7 +188,8 @@ mkinitramfs() {
 			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
 			"--command") COMMAND="$2" ; shift ;;
-			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
+			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet" ;;
+			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
 			*)
 				if test "$CHROOT" = ""; then
 					CHROOT="$1"
@@ -267,7 +300,7 @@ mkbootisofs() {
 		--fonts="" \
 		--themes="starfield" \
 		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-		"/boot/grub/anyfont.pf2=$GRUB_FONT_ANYFONT"
+		$GRUB_FONT_ANYFONT
 
 	truncate -s "10MB" "$DIR/boot/grub/uefi.img"
 	mkdosfs "$DIR/boot/grub/uefi.img"
@@ -296,14 +329,14 @@ mkbootisofs() {
 		-graft-points \
 		-quiet \
 		-output - \
-		"$DIR"
+		"$DIR" 2>"/dev/null"
 }
 
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
 
 	DIR=""
-	TEMPLATE="default"
+	TEMPLATE="default.bbuild"
 	TIMEOUT="0"
 	COMMAND=""
 	INSTALL=""
@@ -329,7 +362,14 @@ boobstrap_build() {
 	done
 
 	if test -f "$SHARE_DIR/bootstrap-templates/$TEMPLATE"; then
+		export INDENT="$INDENT  "
+		echo "Building configuration [$TEMPLATE]" | msg -1
 		sh -c "$SHARE_DIR/bootstrap-templates/$TEMPLATE $DIR"
+		case "$?" in
+			"0") echo "Done [$TEMPLATE]" | msg -1 ;;
+			*) echo "Failed [$TEMPLATE]" | msg -2 ;;
+		esac
+		INDENT="${INDENT%??}"
 	fi
 }
 
@@ -338,7 +378,7 @@ boobstrap_run() {
 }
 
 main() {
-	PROGNAME="${0##*/}"
+	PROGNAME="$(basename $0)"
 
 	if test "$PROGNAME" = "boobstrap"; then
 
@@ -366,6 +406,31 @@ main() {
 	esac
 }
 
+msg() {
+	STDOUT=""
+	STDERR=""
+
+	while test "$1"; do
+		case "$1" in
+			"-1") STDOUT="yes" ;;
+			"-2") STDERR="yes" ;;
+		esac
+		shift
+	done
+
+	if test "$STDOUT" = "yes"; then
+		while read input; do
+			echo "$INDENT$input" >&1
+		done
+	fi
+
+	if test "$STDERR" = "yes"; then
+		while read input; do
+			echo "$INDENT$input" >&2
+		done
+	fi
+}
+
 rtfm() {
 	cat <<"EOF"
 WUT?
@@ -375,56 +440,37 @@ EOF
 get_config_init() {
 	cat <<"EOF"
 #! /bin/sh -
-
 mount -t proc none /proc
-
 mount -t sysfs none /sys
-
 mount -t devtmpfs devtmpfs /dev
-
 mount -t tmpfs none /run
-
 mount -t tmpfs tmpfs /merged
-
 mount -t tmpfs tmpfs /overlay
-
 lowerdir="/overlay/lower"
 upperdir="/overlay/upper"
 workdir="/overlay/work"
-
 mkdir -p $lowerdir
 mkdir -p $upperdir
 mkdir -p $workdir
-
 for overlay in /overlays/*; do
-
 	if test -d "$overlay"; then
-
 		mv -f $overlay/* "/merged"
-
 	else
 		overlay_mount="/overlay/${overlay##*/}"
-
 		lowerdir="$overlay_mount:$lowerdir"
-
 		mkdir -p $overlay_mount
-
 		mount -t squashfs -o ro $overlay $overlay_mount
 	fi
-
 done
-
 if test "$lowerdir" = "/overlay/lower"; then
 	echo
 else
 	mount -t overlay -o lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /merged
 fi
-
 umount /proc
 umount /sys
 umount /dev
 umount /run
-
 exec switch_root /merged /sbin/init
 EOF
 }
@@ -432,32 +478,32 @@ EOF
 get_config_grub_cfg() {
 	cat <<"EOF"
 function load_video {
-if [ x$feature_all_video_module = xy ]; then
-insmod all_video
-else
-insmod efi_gop
-insmod efi_uga
-insmod vbe
-insmod vga
-fi
+	if [ x$feature_all_video_module = xy ]; then
+		insmod all_video
+	else
+		insmod efi_gop
+		insmod efi_uga
+		insmod vbe
+		insmod vga
+	fi
 }
 if loadfont $prefix/anyfont.pf2; then
-set gfxmode=auto
-load_video
-insmod gfxterm
-terminal_output gfxterm
-set gfxpayload=keep
-insmod png
-set theme="$prefix/themes/starfield/theme.txt"
+	set gfxmode=auto
+	load_video
+	insmod gfxterm
+	terminal_output gfxterm
+	set gfxpayload=keep
+	insmod png
+	set theme="$prefix/themes/starfield/theme.txt"
 fi
 set color_normal=cyan/blue
 set menu_color_normal=black/light-gray
 set menu_color_highlight=white/cyan
 set timeout=3
 menuentry "GNU/Linux" {
-search --no-floppy --file --set root /boot/vmlinuz
-linux /boot/vmlinuz
-initrd /boot/initrd
+	search --no-floppy --file --set root /boot/vmlinuz
+	linux /boot/vmlinuz
+	initrd /boot/initrd
 }
 EOF
 }
@@ -465,55 +511,59 @@ EOF
 preflight_checks() {
 	case "$(id -u)" in
 		"0") ;;
-		*)
-			echo "must be run with root priveleges"
-			return 1
-			;;
+		*) echo "must be run with root priveleges, sorry." | msg -2 ; return 1 ;;
 	esac
 
 	for dep in "grub-mkstandalone" "mkdosfs" "xorriso"; do
 		which "$dep" 1>"/dev/null" 2>"/dev/null"
 		case "$?" in
 			"0") ;;
-			*)
-				echo "check for:"
-				echo "* which"
-				echo "* dosfstools"
-				echo "* xorriso"
-				echo "* grub2"
-				echo "* grub2-efi"
-				echo "* squashfs-tools (optional)"
-				return 1
-				;;
+			*) TEST="x" ;;
 		esac
 	done
+
+	if test "$TEST" = "x"; then
+		echo "install: dosfstools, grub2, grub2-efi, xorriso." | msg -2
+		echo "nice to have (optional): squashfs-tools." | msg -2
+		return 1
+	fi
 
 	for dir in "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc"; do
 		if test -f "$dir/cdboot.img"; then
 			GRUB_i386_CDBOOT="$dir/cdboot.img"
+		fi
+		if test -f "$dir/boot_hybrid.img"; then
 			GRUB_i386_HYBRID="$dir/boot_hybrid.img"
 		fi
 	done
 
 	if test "$GRUB_i386_CDBOOT" = ""; then
-		echo "cdboot.img none found, install grub-pc-bin or something."
-		echo "or specify file: env GRUB_i386_CDBOOT=./cdboot.img $0"
-		exit 1
+		echo "cdboot.img none found. install grub-pc-bin or something." | msg -2
+		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img" | msg -2
+		return 1
 	fi
 
 	if test "$GRUB_i386_HYBRID" = ""; then
-		echo "boot_hybrid.img none found, install grub-pc-bin or something."
-		echo "or specify file: env GRUB_i386_HYBRID=./boot_hybrid.img $0"
-		exit 1
+		echo "boot_hybrid.img none found. install grub-pc-bin or something." | msg -2
+		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img" | msg -2
+		return 1
 	fi
 
 	for font in "/usr/lib/grub/fonts/"*".pf2" "/lib/grub/fonts/"*".pf2" "/usr/share/grub/"*".pf2"; do
 		if test -f "$font"; then
-			GRUB_FONT_ANYFONT="$font"
+			GRUB_FONT="$font"
 		fi
 	done
+	
+	if test "$GRUB_FONT" = ""; then
+		echo "any *.pf2 file none found. check your grub files." | msg -2
+		echo "or specify file: export GRUB_FONT=./unicode.pf2" | msg -2
+		echo "continue to running without any font." | msg -2
+	else
+		GRUB_FONT="/boot/grub/anyfont.pf2=$GRUB_FONT"
+	fi
 }
 
-preflight_checks || exit 1
+preflight_checks || exit $?
 
 main "$@"

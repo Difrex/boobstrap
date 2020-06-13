@@ -1,0 +1,47 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	for dir in bootstrap initramfs bootimage; do
+		mkdir "$DIR/$dir"
+	done
+
+	if test -f "$PWD/crux-netboot.cpio"; then
+
+		mkbootstrap "import" "$DIR/bootstrap" < "$PWD/crux-netboot.cpio"
+
+	else
+
+		boobstrap build --template "crux-netboot.bbuild"
+
+		mkbootstrap "import" "$DIR/bootstrap" < "$PWD/crux-netboot.cpio"
+
+	fi
+
+	mkinitramfs "$DIR/initramfs"							\
+											\
+		--overlay "$DIR/bootstrap"						\
+											\
+		--squashfs-xz								\
+											\
+		--output "$DIR/initramfs.img"
+
+	# xz -C "crc32" -T 0 -e -9 -v "$DIR/initramfs.img"
+
+	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
+	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
+
+	mkdir "$DIR/bootimage/crux"
+	for dir in core opt xorg; do
+		cp -r "$PWD/cruxmedia/crux/$dir" "$DIR/bootimage/crux/$dir"
+	done
+
+	mkbootisofs "$DIR/bootimage" > "$DIR/bootimage.iso"
+}
+
+main() {
+	DIR="$1"
+
+	crux_gnulinux "$@"
+}
+
+main "$@"
