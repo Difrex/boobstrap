@@ -213,8 +213,8 @@ mkinitramfs() {
 			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
 			"--command") COMMAND="$2" ; shift ;;
-			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet" ;;
-			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
+			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet 2>/dev/null" ;;
+			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100% 2>/dev/null" ;;
 			*)
 				if test "$CHROOT" = ""; then
 					CHROOT="$1"
@@ -241,7 +241,13 @@ mkinitramfs() {
 		hi
 		for dir in "proc" "sys" "dev" "run" "merged" "overlay" "overlays"; do
 			echo "[/$dir]" | msg -2
+			hi
 			mkdir -p $CHROOT/$dir 2>/dev/null
+			case "$?" in
+				"0") ;;
+				*) echo "Failure [$?]" | msg -2 ;;
+			esac
+			lo
 		done
 		lo
 
@@ -249,7 +255,13 @@ mkinitramfs() {
 		hi
 		for dev in "console" "tty" "tty1" "null"; do
 			echo "[/dev/$dev]" | msg -2
+			hi
 			cp -a "/dev/$dev" "$CHROOT/dev/$dev" 2>/dev/null
+			case "$?" in
+				"0") ;;
+				*) echo "Failure [$?]" | msg -2 ;;
+			esac
+			lo
 		done
 		lo
 
@@ -260,6 +272,7 @@ mkinitramfs() {
 			echo "[$bin]" | msg -2
 
 			deps=""
+			code=""
 			for dep in $(lddtree $(which $bin)); do
 				deps="$deps $dep"
 
@@ -268,23 +281,35 @@ mkinitramfs() {
 				fi
 
 				install -D "$dep" "$CHROOT$dep" 2>/dev/null
+				code="$?"
 			done
 
 			deps=$(echo $deps | tr ' ' '\n' | sort | uniq | tr '\n' ' ')
 			hi
 			for dep in $deps; do
 				echo "$dep" | msg -2
+				hi
+				case "$code" in
+					"0") ;;
+					*) echo "Failure [$code]" | msg -2 ;;
+				esac
+				lo
 			done
 			lo
 		done
 		lo
 
 		echo "Creating init [/init]" | msg -2
+		hi
 		get_config_init > "$CHROOT/init" 2>/dev/null
-		chmod +x "$CHROOT/init" 2>/dev/null
+		case "$?" in
+			"0") chmod +x "$CHROOT/init" 2>/dev/null ;;
+			*) echo "Failure [$?]" | msg -2 ;;
+		esac
+		lo
 
 		if test "$COMMAND" = ""; then
-			COMMAND="cp -a \${SOURCE} \${DESTINATION}"
+			COMMAND="cp -a \${SOURCE} \${DESTINATION} 2>/dev/null"
 		fi
 
 		NUM=0
@@ -311,17 +336,18 @@ mkinitramfs() {
 
 	echo "Creating initramfs [$IMAGE]" | msg -2
 
+	cd "$CHROOT" 2>/dev/null
 	hi
 	case "$IMAGE" in
 		""|"-") find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null ; STATUS="$?" ;;
 		*) find . -print0 | cpio --create --format "newc" --null --quiet > "$IMAGE" 2>/dev/null ; STATUS="$?" ;;
 	esac
-
 	case "$STATUS" in
-		"0") echo "OK" | msg -2 ;;
+		"0") ;;
 		*) echo "Failure [$STATUS]" | msg -2 ;;
 	esac
 	lo
+	cd "$OLDPWD" 2>/dev/null
 
 	echo "Done [$IMAGE]" | msg -2
 
@@ -349,13 +375,26 @@ mkbootisofs() {
 		DIR="."
 	fi
 
-	echo "Creating bootable iso image" | msg -2
+	echo "Creating ISO [$DIR]" | msg -2
 	hi
 
 	if test -d "$DIR/boot"; then
-		mkdir "$DIR/boot/grub"
-		get_config_grub_cfg > "$DIR/boot/grub/grub.cfg"
+		echo "Writing grub configuration" | msg -2
+		hi
+
+		mkdir "$DIR/boot/grub" 2>/dev/null
+
+		get_config_grub_cfg > "$DIR/boot/grub/grub.cfg" 2>/dev/null
+
+		case "$?" in
+			"0") ;;
+			*) echo "Failure [$?]" | msg -2 ;;
+		esac
+		lo
 	fi
+
+	echo "Generate BIOS bootloader" | msg -2
+	hi
 
 	grub-mkstandalone \
 		--format="i386-pc" \
@@ -365,9 +404,28 @@ mkbootisofs() {
 		--locales="" \
 		--fonts="" \
 		--themes="" \
-		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
+		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
+		>/dev/null 2>&1
 
-	cat "$GRUB_i386_CDBOOT" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img"
+	case "$?" in
+		"0") ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+	lo
+
+	echo "Copying BIOS bootloader" | msg -2
+	hi
+
+	cat "$GRUB_i386_CDBOOT" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img" 2>/dev/null
+
+	case "$?" in
+		"0") ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+	lo
+
+	echo "Generate UEFI bootloader" | msg -2
+	hi
 
 	grub-mkstandalone \
 		--format="x86_64-efi" \
@@ -377,17 +435,74 @@ mkbootisofs() {
 		--fonts="" \
 		--themes="starfield" \
 		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-		$GRUB_FONT
+		$GRUB_FONT \
+		>/dev/null 2>&1
 
-	truncate -s "10MB" "$DIR/boot/grub/uefi.img"
-	mkdosfs "$DIR/boot/grub/uefi.img"
-	mkdir "$DIR/uefi"
-	mount "$DIR/boot/grub/uefi.img" "$DIR/uefi"
-	mkdir "$DIR/uefi/EFI"
-	mkdir "$DIR/uefi/EFI/BOOT"
-	cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI"
-	umount "$DIR/uefi"
-	rmdir "$DIR/uefi"
+	case "$?" in
+		"0") ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+
+	echo "Creating UEFI (FAT32) partition" | msg -2
+	hi
+
+	echo "Writing empty partition" | msg -2
+	hi
+	truncate -s "10MB" "$DIR/boot/grub/uefi.img" 2>/dev/null
+	case "$?" in
+		"0") ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+	lo
+
+	echo "Formatting empty partition to FAT32" | msg -2
+	hi
+	mkdosfs "$DIR/boot/grub/uefi.img" 2>/dev/null
+	case "$?" in
+		"0") ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+	lo
+
+	echo "Mounting UEFI (FAT32) partition" | msg -2
+	hi
+	mkdir "$DIR/uefi" 2>/dev/null
+	mount "$DIR/boot/grub/uefi.img" "$DIR/uefi" 2>/dev/null
+	case "$?" in
+		"0") ;;
+		"32") echo "root priveleges required for mount" | msg -2 ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+	lo
+
+	echo "Copying UEFI bootloader to UEFI (FAT32) partition" | msg -2
+	hi
+	mkdir "$DIR/uefi/EFI" 2>/dev/null
+	mkdir "$DIR/uefi/EFI/BOOT" 2>/dev/null
+	cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null
+	case "$?" in
+		"0") ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+	lo
+
+	echo "Unmounting UEFI (FAT32) partition" | msg -2
+	hi
+	umount "$DIR/uefi" 2>/dev/null
+	case "$?" in
+		"0") ;;
+		"32") echo "root priveleges required for umount" | msg -2 ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
+	lo
+
+	rmdir "$DIR/uefi" 2>/dev/null
+
+	lo
+	lo
+
+	echo "Writing BIOS/UEFI bootable ISO image [$IMAGE]" | msg -2
+	hi
 
 	xorriso -as "mkisofs" \
 		-iso-level 3 \
@@ -408,8 +523,14 @@ mkbootisofs() {
 		-output - \
 		"$DIR" 2>"/dev/null"
 
+	case "$?" in
+		"0") ;;
+		*) echo "Failure [$?]" | msg -2 ;;
+	esac
 	lo
-	echo "Bootable iso image done" | msg -2
+
+	lo
+	echo "Done [$DIR]" | msg -2
 }
 
 boobstrap_build() {
@@ -440,11 +561,11 @@ boobstrap_build() {
 
 	if test -f "$TEMPLATE"; then
 		hi
-		echo "Building configuration [$TEMPLATE]" | msg -2
+		echo "Building configuration [${TEMPLATE##*/}]" | msg -2
 		eval $TEMPLATE $DIR
 		case "$?" in
-			"0") echo "Done [$TEMPLATE]" | msg -2 ;;
-			*) echo "Failed [$TEMPLATE]" | msg -2 ;;
+			"0") echo "Done [${TEMPLATE##*/}]" | msg -2 ;;
+			*) echo "Failed [${TEMPLATE##*/}]" | msg -2 ;;
 		esac
 		lo
 	fi
@@ -605,6 +726,8 @@ preflight_checks() {
 	if test "$TEST" = "x"; then
 		echo "install: dosfstools, grub2, grub2-efi, xorriso." | msg -2
 		echo "nice to have (optional): squashfs-tools." | msg -2
+		echo "if you sure is it installed check for PATH variable" | msg -2
+		echo "some utilities requires root priveleges" | msg -2
 		return 1
 	fi
 
