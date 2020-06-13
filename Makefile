@@ -2,7 +2,7 @@ DESTDIR =
 BINDIR = /usr/bin
 SHAREDIR = /usr/share
 
-VERSION = 1.0-rc2
+VERSION = 1.0-rc3
 NAME = boobstrap
 
 # Packages directory

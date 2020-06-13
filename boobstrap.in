@@ -361,20 +361,13 @@ mkbootisofs() {
 }
 
 boobstrap_build() {
-	SHARE_DIR="/usr/share"
-
 	DIR=""
-	TEMPLATE="default.bbuild"
-	TIMEOUT="0"
+	TEMPLATE=""
 	COMMAND=""
-	INSTALL=""
 
 	while test "$1"; do
 		case "$1" in
 			"--template") TEMPLATE="$2" ; shift ;;
-			"--timeout") TIMEOUT="$2" ; shift ;;
-			*"="*) INSTALL="$INSTALL $1" ;;
-			"--") shift ; COMMAND="$@" ;;
 		esac
 		shift
 	done
@@ -383,18 +376,20 @@ boobstrap_build() {
 		DIR="$(mktemp -d -p $PWD)"
 	fi
 
-	for i in $INSTALL; do
-		src="${i##*=}"
-		dst="$DIR/configure/${i%%=*}"
-		install -D "$src" "$dst"
-	done
+	if test -f "/usr/share/bootstrap-templates/$TEMPLATE"; then
+		TEMPLATE="/usr/share/bootstrap-templates/$TEMPLATE"
+	elif test -f "$TEMPLATE"; then
+		TEMPLATE="$(realpath $TEMPLATE)"
+	else
+		echo "no such file" | msg -2
+	fi
 
-	if test -f "$SHARE_DIR/bootstrap-templates/$TEMPLATE"; then
+	if test -f "$TEMPLATE"; then
 		hi
-		echo "Building configuration [$TEMPLATE]" | msg -1
-		sh -c "$SHARE_DIR/bootstrap-templates/$TEMPLATE $DIR"
+		echo "Building configuration [$TEMPLATE]" | msg -2
+		eval $TEMPLATE $DIR
 		case "$?" in
-			"0") echo "Done [$TEMPLATE]" | msg -1 ;;
+			"0") echo "Done [$TEMPLATE]" | msg -2 ;;
 			*) echo "Failed [$TEMPLATE]" | msg -2 ;;
 		esac
 		lo
