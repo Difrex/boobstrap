@@ -376,8 +376,8 @@ boobstrap_build() {
 		DIR="$(mktemp -d -p $PWD)"
 	fi
 
-	if test -f "/usr/share/bootstrap-templates/$TEMPLATE"; then
-		TEMPLATE="/usr/share/bootstrap-templates/$TEMPLATE"
+	if test -f "/usr/share/boobstrap/bootstrap-templates/$TEMPLATE"; then
+		TEMPLATE="/usr/share/boobstrap/bootstrap-templates/$TEMPLATE"
 	elif test -f "$TEMPLATE"; then
 		TEMPLATE="$(realpath $TEMPLATE)"
 	else
