@@ -52,7 +52,6 @@ mkbootstrap() {
 
 importroot() {
 	DIR=""
-
 	while test "$1"; do
 		case "$1" in
 			*)
@@ -63,7 +62,6 @@ importroot() {
 		esac
 		shift
 	done
-
 	if test -d "$DIR"; then
 		cd "$DIR"
 		cpio --extract --make-directories --format "newc" --quiet
@@ -75,7 +73,6 @@ importroot() {
 
 exportroot() {
 	DIR=""
-
 	while test "$1"; do
 		case "$1" in
 			*)
@@ -86,7 +83,6 @@ exportroot() {
 		esac
 		shift
 	done
-
 	if test -d "$DIR"; then
 		cd "$DIR"
 		find . -print0 | cpio --create --format "newc" --null --quiet
@@ -220,8 +216,8 @@ mkinitramfs() {
 
 	cd "$CHROOT"
 	case "$IMAGE" in
-		""|"-") find . -print0 | cpio -0o -H "newc" ;;
-		*) find . -print0 | cpio -0o -H "newc" > "$IMAGE" ;;
+		""|"-") find . -print0 | cpio -0o -H "newc" --quiet ;;
+		*) find . -print0 | cpio -0o -H "newc" --quiet > "$IMAGE" ;;
 	esac
 	cd "$OLDPWD"
 }
@@ -306,13 +302,11 @@ mkbootisofs() {
 boobstrap_build() {
 	SHARE_DIR="/usr/share"
 
+	DIR=""
 	TEMPLATE="default"
 	TIMEOUT="0"
 	COMMAND=""
 	INSTALL=""
-
-	ISO=""
-	DIR=""
 
 	while test "$1"; do
 		case "$1" in
@@ -327,9 +321,6 @@ boobstrap_build() {
 	if test "$DIR" = ""; then
 		DIR="$(mktemp -d -p $PWD)"
 	fi
-
-	echo "#! /bin/sh -" > "$DIR/post-install"
-	chmod +x "$DIR/post-install"
 
 	for i in $INSTALL; do
 		src="${i##*=}"
