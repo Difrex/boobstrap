@@ -1,4 +1,5 @@
 #! /bin/sh -
+
 getsources() {
 	wget -T 5 "http://dl.voglea.com/dist/crux_gnulinux/amd64/vendor/crux-3.5-updated.iso" || return 1
 
@@ -26,14 +27,14 @@ mountmedia() {
 
 	mkdir -p "$PWD/cruxmedia" || return 1
 
-	mount "$ISO" "$PWD/cruxmedia" || return 1
+	mount "$ISO" "$PWD/cruxmedia" 2>/dev/null || return 1
 
 	return 0
 }
 
 umountmedia() {
 	if mountpoint -q "$PWD/cruxmedia"; then
-		umount "$PWD/cruxmedia" || return 1
+		umount "$PWD/cruxmedia" 2>/dev/null || return 1
 	else
 		return 1
 	fi
@@ -42,17 +43,25 @@ umountmedia() {
 }
 
 runtest() {
-	trysources || (getsources && trysources) || (echo "TEST FAILED: wget http://ftp.morpheus.net/pub/linux/crux/latest/iso/crux-3.5.iso" && return 1)
+	trysources || getsources
+	
+	trysources || kitkat "TEST FAILED: wget http://ftp.morpheus.net/pub/linux/crux/latest/iso/crux-3.5.iso"
 
-	mountmedia || (echo "TEST FAILED: mount crux-3.5.iso $PWD/cruxmedia" && return 1)
+	mountmedia || kitkat "TEST FAILED: mount crux-3.5.iso $PWD/cruxmedia"
 
-	boobstrap build --template "default.bbuild" || (echo "TEST FAILED: boobstrap build --template default.bbuild" && return 1)
+	boobstrap build --template "default.bbuild" || kitkat "TEST FAILED: boobstrap build --template default.bbuild"
 
-	umountmedia || (echo "TEST NOTICE: umount $PWD/cruxmedia" && return 0)
+	umountmedia || kitkat "TEST NOTICE: umount $PWD/cruxmedia"
+}
+
+kitkat() {
+	echo "$@"
+
+	exit 0
 }
 
 main() {
-	(echo "*** TEST RUINING" && runtest && echo "*** TEST PASSED") || echo "*** TEST FAILED"
+	echo "TEST RUINING" && runtest && echo "TEST PASSED" || echo "TEST FAILED"
 }
 
 main "$@"
