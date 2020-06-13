@@ -34,15 +34,10 @@ crux_gnulinux() {
 	mkbootstrap "export" "$DIR/bootstrap" > "$PWD/crux-netboot.cpio"
 
 	mkinitramfs "$DIR/initramfs"							\
-											\
 		--overlay "$DIR/bootstrap"						\
-											\
 		--output "$DIR/initramfs.img"
 
-	# xz -C "crc32" -T 0 -e -9 -v "$DIR/initramfs.img"
-	# mv "$DIR/initramfs.img.xz" "$DIR/initramfs.img"
-
-	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
+	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz" 2>/dev/null
 	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
 
 	mkbootisofs "$DIR/bootimage" > "$DIR/bootimage.iso"

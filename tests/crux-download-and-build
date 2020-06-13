@@ -57,11 +57,15 @@ runtest() {
 kitkat() {
 	echo "$@"
 
-	exit 0
+	exit 1
 }
 
 main() {
-	echo "TEST RUINING" && runtest && echo "TEST PASSED" || echo "TEST FAILED"
+	echo "TEST RUNNING"
+	
+	runtest || echo "TEST RUINED"
+	
+	echo "TEST ENDED"
 }
 
 main "$@"
