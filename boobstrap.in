@@ -35,14 +35,14 @@ pkgadd() {
 	version="${version%%.pkg*}"
 	version="${version##*\#}"
 
-	echo "$name" >> "$CHROOT/var/lib/pkg/db"			|| return 1
-	echo "$version" >> "$CHROOT/var/lib/pkg/db"			|| return 1
+	echo "$name" >> "$CHROOT/var/lib/pkg/db" 2>/dev/null		|| return 1
+	echo "$version" >> "$CHROOT/var/lib/pkg/db" 2>/dev/null		|| return 1
 	tar -xpvf "$1" \
 		--xattrs-include="*.*" \
 		--numeric-owner \
 		--directory "$CHROOT" >> "$CHROOT/var/lib/pkg/db" \
 		2>/dev/null						|| return 1
-	echo "" >> "$CHROOT/var/lib/pkg/db"				|| return 1
+	echo "" >> "$CHROOT/var/lib/pkg/db" 2>/dev/null			|| return 1
 }
 
 mkbootstrap() {
@@ -71,10 +71,10 @@ importroot() {
 		echo "Import chroot [$DIR]" | msg -2
 		hi
 		cd "$DIR"
-		cpio --extract --make-directories --format "newc" --quiet 2>/dev/null
+		cpio --extract --make-directories --format "newc" --quiet >/dev/null 2>&1
 		case "$?" in
 			"0") echo "Import success." | msg -2 ;;
-			*) echo "Import failed." | msg -2 ; return 1 ;;
+			*) echo "Import failed." | msg -2 ;;
 		esac
 		cd "$OLDPWD"
 		lo
@@ -103,7 +103,7 @@ exportroot() {
 		find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null
 		case "$?" in
 			"0") echo "Export success." | msg -2 ;;
-			*) echo "Export failed." | msg -2 ; return 1 ;;
+			*) echo "Export failed." | msg -2 ;;
 		esac
 		cd "$OLDPWD"
 		lo
@@ -177,8 +177,8 @@ cruxstrap() {
 		echo "Packages to install: $(echo $INSTALL | wc -w)" | msg -1
 		hi
 
-		mkdir -p "$CHROOT/var/lib/pkg" || return 1
-		touch "$CHROOT/var/lib/pkg/db" || return 1
+		mkdir -p "$CHROOT/var/lib/pkg" 2>/dev/null
+		touch "$CHROOT/var/lib/pkg/db" 2>/dev/null
 
 		for prt in $INSTALL; do
 			name="$(basename $prt)"
@@ -267,7 +267,7 @@ mkinitramfs() {
 					continue
 				fi
 
-				install -D "$dep" "$CHROOT$dep"
+				install -D "$dep" "$CHROOT$dep" 2>/dev/null
 			done
 
 			deps=$(echo $deps | tr ' ' '\n' | sort | uniq | tr '\n' ' ')
@@ -280,16 +280,14 @@ mkinitramfs() {
 		lo
 
 		echo "Creating init [/init]" | msg -2
-
-		get_config_init > "$CHROOT/init"
-
-		chmod +x "$CHROOT/init"
-
-		NUM=0
+		get_config_init > "$CHROOT/init" 2>/dev/null
+		chmod +x "$CHROOT/init" 2>/dev/null
 
 		if test "$COMMAND" = ""; then
 			COMMAND="cp -a \${SOURCE} \${DESTINATION}"
 		fi
+
+		NUM=0
 
 		echo "Prepare overlays" | msg -2
 		hi
@@ -298,8 +296,8 @@ mkinitramfs() {
 			SOURCE="$overlay"
 			DESTINATION="$CHROOT/overlays/$NUM-$(basename $overlay)"
 			echo "Do: $COMMAND" | msg -2
-			eval "$COMMAND" 1>&2
 			hi
+			eval "$COMMAND" 1>&2
 			case "$?" in
 				"0") echo "OK" | msg -2 ;;
 				*) echo "Failure [$?]" | msg -2 ;;
@@ -311,12 +309,21 @@ mkinitramfs() {
 		echo "Overlays done" | msg -2
 	fi
 
-	cd "$CHROOT"
+	echo "Creating initramfs [$IMAGE]" | msg -2
+
+	hi
 	case "$IMAGE" in
-		""|"-") find . -print0 | cpio -0o -H "newc" --quiet ;;
-		*) find . -print0 | cpio -0o -H "newc" --quiet > "$IMAGE" ;;
+		""|"-") find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null ; STATUS="$?" ;;
+		*) find . -print0 | cpio --create --format "newc" --null --quiet > "$IMAGE" 2>/dev/null ; STATUS="$?" ;;
 	esac
-	cd "$OLDPWD"
+
+	case "$STATUS" in
+		"0") echo "OK" | msg -2 ;;
+		*) echo "Failure [$STATUS]" | msg -2 ;;
+	esac
+	lo
+
+	echo "Done [$IMAGE]" | msg -2
 
 	lo
 	echo "Done [$CHROOT]" | msg -2
@@ -587,11 +594,6 @@ EOF
 }
 
 preflight_checks() {
-	case "$(id -u)" in
-		"0") ;;
-		*) echo "must be run with root priveleges, sorry." | msg -2 ; return 1 ;;
-	esac
-
 	for dep in "grub-mkstandalone" "mkdosfs" "xorriso"; do
 		which "$dep" 1>"/dev/null" 2>"/dev/null"
 		case "$?" in
