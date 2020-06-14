@@ -2,7 +2,7 @@
 
 crux_gnulinux() {
 	for dir in bootstrap initramfs bootimage; do
-		mkdir "$DIR/$dir"
+		mkdir "$DIR/$dir" 2>/dev/null
 	done
 
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\

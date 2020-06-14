@@ -1,5 +1,6 @@
 DESTDIR =
 BINDIR = /usr/bin
+ETCDIR = /etc
 SHAREDIR = /usr/share
 
 VERSION = 1.0-rc3
@@ -20,6 +21,7 @@ boobstrap: boobstrap.in
 
 install: all
 	install -D -m 0755 boobstrap.in $(DESTDIR)$(BINDIR)/boobstrap
+	install -D -m 0755 boobstrap.conf $(DESTDIR)$(ETCDIR)/boobstrap.conf
 	install -D -m 0755 qemu-helper/qemu $(DESTDIR)$(SHAREDIR)/qemu-helper/qemu
 	install -D -m 0755 bootstrap-templates/default.bbuild $(DESTDIR)$(SHAREDIR)/boobstrap/bootstrap-templates/default.bbuild
 	install -D -m 0755 bootstrap-templates/crux-netboot.bbuild $(DESTDIR)$(SHAREDIR)/boobstrap/bootstrap-templates/crux-netboot.bbuild

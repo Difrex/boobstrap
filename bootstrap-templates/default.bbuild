@@ -2,7 +2,7 @@
 
 crux_gnulinux() {
 	for dir in bootstrap initramfs bootimage; do
-		mkdir "$DIR/$dir"
+		mkdir "$DIR/$dir" 2>/dev/null
 	done
 
 	if test -f "$PWD/crux-netboot.cpio"; then
