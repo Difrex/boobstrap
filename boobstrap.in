@@ -832,12 +832,12 @@ preflight_checks() {
 	fi
 }
 
-preflight_checks || exit $?
+preflight_checks || exit 1
 
-if test -f "$HOME/.boobstrap.conf"; then
-	. "$HOME/.boobstrap.conf" 2>/dev/null || echo "$HOME/.boobstrap.conf contain errors!" | msg -2
-elif test -f "/etc/boobstrap.conf"; then
-	. "/etc/boobstrap.conf" 2>/dev/null || echo "/etc/boobstrap.conf contain errors!" | msg -2
-fi
+for BOOBSTRAP_CONF in "/etc/boobstrap.conf" "$HOME/.boobstrap.conf"; do
+	if test -f "$BOOBSTRAP_CONF"; then
+		. "$BOOBSTRAP_CONF" || exit 1
+	fi
+done
 
 main "$@"
