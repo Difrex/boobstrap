@@ -292,8 +292,15 @@ mkinitramfs() {
 		lo
 
 		echo "Copying system files" | msg -2
+
+		SYSTEMWIDE_BINARIES="$(initramfs_systemwide_bin 2>/dev/null)"
+
+		if test "$SYSTEMWIDE_BINARIES" = ""; then
+			SYSTEMWIDE_BINARIES="sh switch_root mount umount mkdir rmdir mv"
+		fi
+
 		hi
-		for bin in $(initramfs_systemwide_bin); do
+		for bin in $SYSTEMWIDE_BINARIES; do
 			which $bin 1>/dev/null 2>/dev/null
 			CODE="$?"
 			case "$CODE" in
@@ -731,11 +738,7 @@ msg() {
 }
 
 rtfm() {
-	while read input; do
-		case "$input" in
-			"# "*) echo "${input%%# *}" ;;
-		esac
-	done < "$0"
+	echo "Nothing here."
 }
 
 get_config_grub_cfg() {
@@ -781,10 +784,10 @@ preflight_checks() {
 	done
 
 	if test "$TEST" = "x"; then
-		echo "install: dosfstools, grub2, grub2-efi, xorriso." | msg -2
-		echo "nice to have (optional): squashfs-tools." | msg -2
-		echo "if you sure is it installed check for PATH variable" | msg -2
-		echo "some utilities requires root priveleges" | msg -2
+		echo "install: dosfstools, grub2, grub2-efi, xorriso."
+		echo "nice to have (optional): squashfs-tools."
+		echo "if you sure is it installed check for PATH variable"
+		echo "some utilities requires root priveleges"
 		return 1
 	fi
 
@@ -798,14 +801,14 @@ preflight_checks() {
 	done
 
 	if test "$GRUB_i386_CDBOOT" = ""; then
-		echo "cdboot.img none found. install grub-pc-bin or something." | msg -2
-		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img" | msg -2
+		echo "cdboot.img none found. install grub-pc-bin or something."
+		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img"
 		return 1
 	fi
 
 	if test "$GRUB_i386_HYBRID" = ""; then
-		echo "boot_hybrid.img none found. install grub-pc-bin or something." | msg -2
-		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img" | msg -2
+		echo "boot_hybrid.img none found. install grub-pc-bin or something."
+		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img"
 		return 1
 	fi
 
@@ -816,9 +819,9 @@ preflight_checks() {
 	done
 	
 	if test "$GRUB_FONT" = ""; then
-		echo "any *.pf2 file none found. check your grub files." | msg -2
-		echo "or specify file: export GRUB_FONT=./unicode.pf2" | msg -2
-		echo "continue to running without any font." | msg -2
+		echo "any *.pf2 file none found. check your grub files."
+		echo "or specify file: export GRUB_FONT=./unicode.pf2"
+		echo "continue to running without any font."
 	else
 		GRUB_FONT="/boot/grub/font.pf2=$GRUB_FONT"
 	fi
@@ -832,12 +835,12 @@ preflight_checks() {
 	fi
 }
 
-preflight_checks || exit 1
-
 for BOOBSTRAP_CONF in "/etc/boobstrap.conf" "$HOME/.boobstrap.conf"; do
 	if test -f "$BOOBSTRAP_CONF"; then
 		. "$BOOBSTRAP_CONF" || exit 1
 	fi
 done
+
+preflight_checks || exit 1
 
 main "$@"

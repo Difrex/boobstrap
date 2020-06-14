@@ -1,26 +1,26 @@
 
 Requirements:
 
-	grub2, grub2-efi ("/usr/share/grub/themes" recommened)
+	grub2
+	grub2-efi
 	dosfstools
 	xorriso
 
-Nice to have:
+Nice to have (optional):
 
 	squashfs-tools
-
-Kernel configuration:
-
-	CONFIG_OVERLAY_FS=y
-
-	CONFIG_SQUASHFS=y
-	CONFIG_SQUASHFS_XZ=y
 	
 Install:
 
 	make DESTDIR=/usr/local install
 
-Very simple usage:
+Quick Start:
+
+	./boobstrap/tests/crux-download-and-build
+
+	~3.5G free space required in directory where test script runs!
+
+Usage:
 
 	Download CRUX 3.5 ISO
 	mount ISO to /mnt/crux-media or something
