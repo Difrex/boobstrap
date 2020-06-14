@@ -293,7 +293,7 @@ mkinitramfs() {
 
 		echo "Copying system files" | msg -2
 		hi
-		for bin in "sh" "switch_root" "mount" "umount" "mkdir" "rmdir" "mv"; do
+		for bin in $(initramfs_systemwide_bin); do
 			which $bin 1>/dev/null 2>/dev/null
 			CODE="$?"
 			case "$CODE" in
@@ -341,7 +341,7 @@ mkinitramfs() {
 		echo "Creating init" | msg -2
 		hi
 		echo "/init" | msg -2 --foreground "Light Blue"
-		get_config_init > "$CHROOT/init" 2>/dev/null
+		initramfs_init > "$CHROOT/init" 2>/dev/null
 		chmod +x "$CHROOT/init" 2>/dev/null
 		CODE="$?"
 		hi
@@ -738,44 +738,6 @@ rtfm() {
 	done < "$0"
 }
 
-get_config_init() {
-	cat <<"EOF"
-#! /bin/sh -
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t devtmpfs devtmpfs /dev
-mount -t tmpfs none /run
-mount -t tmpfs tmpfs /merged
-mount -t tmpfs tmpfs /overlay
-lowerdir="/overlay/lower"
-upperdir="/overlay/upper"
-workdir="/overlay/work"
-mkdir -p $lowerdir
-mkdir -p $upperdir
-mkdir -p $workdir
-for overlay in /overlays/*; do
-	if test -d "$overlay"; then
-		mv -f $overlay/* "/merged"
-	else
-		overlay_mount="/overlay/${overlay##*/}"
-		lowerdir="$overlay_mount:$lowerdir"
-		mkdir -p $overlay_mount
-		mount -t squashfs -o ro $overlay $overlay_mount
-	fi
-done
-if test "$lowerdir" = "/overlay/lower"; then
-	echo
-else
-	mount -t overlay -o lowerdir="$lowerdir",upperdir="$upperdir",workdir="$workdir" overlay /merged
-fi
-umount /proc
-umount /sys
-umount /dev
-umount /run
-exec switch_root /merged /sbin/init
-EOF
-}
-
 get_config_grub_cfg() {
 	cat <<"EOF"
 function load_video {
@@ -868,14 +830,14 @@ preflight_checks() {
 			COLOURS="none"
 		fi
 	fi
-
-	if test -f "$HOME/.boobstrap.conf"; then
-		. "$HOME/.boobstrap.conf" 2>/dev/null || echo "$HOME/.boobstrap.conf contain errors!" | msg -2
-	elif test -f "/etc/boobstrap.conf"; then
-		. "/etc/boobstrap.conf" 2>/dev/null || echo "/etc/boobstrap.conf contain errors!" | msg -2
-	fi
 }
 
 preflight_checks || exit $?
+
+if test -f "$HOME/.boobstrap.conf"; then
+	. "$HOME/.boobstrap.conf" 2>/dev/null || echo "$HOME/.boobstrap.conf contain errors!" | msg -2
+elif test -f "/etc/boobstrap.conf"; then
+	. "/etc/boobstrap.conf" 2>/dev/null || echo "/etc/boobstrap.conf contain errors!" | msg -2
+fi
 
 main "$@"
