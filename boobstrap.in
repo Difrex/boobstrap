@@ -212,6 +212,7 @@ cruxstrap() {
 	fi
 
 	lo
+	echo "Done [$CHROOT]" | msg -1
 }
 
 mkinitramfs() {
