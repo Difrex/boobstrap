@@ -307,7 +307,7 @@ lddtree() {
 
 	echo "$1"
 
-	for dep in $(ldd "$1" | grep -o '/.* '); do
+	for dep in $(ldd "$1" | grep "=> /" | cut -d " " -f 3); do
 		lddtree "$dep"
 	done
 }
@@ -873,7 +873,7 @@ preflight_checks() {
 	fi
 }
 
-for BOOBSTRAP_CONF in "/etc/boobstrap.conf" "$HOME/.boobstrap.conf"; do
+for BOOBSTRAP_CONF in "/etc/boobstrap/boobstrap.conf" "$HOME/.config/boobstrap/boobstrap.conf"; do
 	if test -f "$BOOBSTRAP_CONF"; then
 		. "$BOOBSTRAP_CONF" || exit 1
 	fi
