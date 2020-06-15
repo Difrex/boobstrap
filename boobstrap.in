@@ -118,6 +118,19 @@ mkinitramfs() {
 	echo "Done [$CHROOT]" | msg -2
 }
 
+iso_bootloader_conf() {
+	if test -f "$1/boot/grub.cfg"; then
+		echo "Keep pre-installed configuration" | msg -2 --foreground "Purple"
+	elif bootloader_conf >/dev/null 2>&1; then
+		echo "Writing grub configuration" | msg -2 --foreground "Purple"
+		mkdir -p "$1/boot/grub" 2>/dev/null
+		bootloader_conf 2>/dev/null >> "$1/boot/grub/grub.cfg"
+		bootloader_menu 2>/dev/null >> "$1/boot/grub/grub.cfg"
+	else
+		echo "Bootloader configuration failed to install" | msg -2 --foreground "Brown"
+	fi
+}
+
 mkbootisofs() {
 	DIR=""
 	IMAGE=""
@@ -141,20 +154,7 @@ mkbootisofs() {
 	echo "Creating ISO [$DIR]" | msg -2
 	hi
 
-	if test -d "$DIR/boot"; then
-		echo "Writing grub configuration" | msg -2 --foreground "Purple"
-		hi
-
-		mkdir "$DIR/boot/grub" 2>/dev/null
-
-		get_config_grub_cfg > "$DIR/boot/grub/grub.cfg" 2>/dev/null
-
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-	fi
+	iso_bootloader_conf "$DIR"
 
 	echo "Generate BIOS bootloader" | msg -2 --foreground "Purple"
 	hi
@@ -307,7 +307,7 @@ lddtree() {
 
 	echo "$1"
 
-	for dep in $(ldd "$1" | grep "=> /" | cut -d " " -f 3); do
+	for dep in $(ldd "$1" | awk 'BEGIN{ORS="\n"}$1~/^\//{print $1}$3~/^\//{print $3}'); do
 		lddtree "$dep"
 	done
 }
@@ -708,7 +708,7 @@ cruxstrap() {
 	if test "$IGNORED"; then
 		echo "Packages ignored because none found." | msg -2
 		hi
-		for prt in $IGNORED; do
+		for prt in $(echo $IGNORED | tr " " "\n" | sort | uniq | tr "\n" " "); do
 			echo "$prt" | msg -2 --foreground "Light Red" --highlight
 		done
 		lo
@@ -719,7 +719,7 @@ cruxstrap() {
 		mkdir -p "$CHROOT/var/lib/pkg" 2>/dev/null
 		touch "$CHROOT/var/lib/pkg/db" 2>/dev/null
 		hi
-		for prt in $INSTALL; do
+		for prt in $(echo $INSTALL | tr " " "\n" | sort | uniq | tr "\n" " "); do
 			name="$(basename $prt)"
 			name="${name%%#*}"
 			pkgadd --root "$CHROOT" "$prt"
@@ -773,39 +773,6 @@ main() {
 
 rtfm() {
 	echo "Nothing here."
-}
-
-get_config_grub_cfg() {
-	cat <<"EOF"
-function load_video {
-	if [ x$feature_all_video_module = xy ]; then
-		insmod all_video
-	else
-		insmod efi_gop
-		insmod efi_uga
-		insmod vbe
-		insmod vga
-	fi
-}
-if loadfont $prefix/font.pf2; then
-	set gfxmode=auto
-	load_video
-	insmod gfxterm
-	terminal_output gfxterm
-	set gfxpayload=keep
-	insmod png
-	set theme="$prefix/themes/starfield/theme.txt"
-fi
-set color_normal=cyan/blue
-set menu_color_normal=black/light-gray
-set menu_color_highlight=white/cyan
-set timeout=3
-menuentry "GNU/Linux" {
-	search --no-floppy --file --set root /boot/vmlinuz
-	linux /boot/vmlinuz
-	initrd /boot/initrd
-}
-EOF
 }
 
 preflight_checks() {

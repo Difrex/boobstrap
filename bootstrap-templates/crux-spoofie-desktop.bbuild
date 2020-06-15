@@ -1,21 +1,13 @@
 #! /bin/sh -
 
 crux_gnulinux() {
-	for dir in bootstrap initramfs bootimage configure; do
+	for dir in bootstrap initramfs bootimage; do
 		mkdir "$DIR/$dir"
 	done
 
-	mkdir -p "$DIR/configure/etc"
-	cp -a "/etc/rc.local" "$DIR/configure/etc/rc.local"
-	cp -a "/etc/pkgmk.conf" "$DIR/configure/etc/pkgmk.conf"
-	cp -a "/etc/asound.conf" "$DIR/configure/etc/asound.conf"
-
-	mkdir -p "$DIR/configure/usr/share/grub/themes"
-	cp -a "/usr/share/grub/themes/"* "$DIR/configure/usr/share/grub/themes"
-
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
-		--ports-dir "/mnt/cruxports"						\
+		--ports-dir "$PWD/cruxports"						\
 											\
 		"alsa-utils"		"htop"			"qemu"			\
 		"apulse"		"kexec-tools"		"rxvt-unicode"		\
@@ -23,7 +15,7 @@ crux_gnulinux() {
 		"fvwm"			"libxkbcommon"		"xorg-font-dejavu-ttf"	\
 		"git"			"linux"			"xorriso"		\
 											\
-		--ports-dir "/mnt/cruxmedia/crux/core"					\
+		--ports-dir "$PWD/cruxmedia/crux/core"					\
 											\
 		"acl"			"glibc-32"		"openssh"		\
 		"attr"			"gperf"			"openssl"		\
@@ -60,7 +52,7 @@ crux_gnulinux() {
 		"gettext"		"ncurses"					\
 		"glibc"			"openrdate"					\
 											\
-		--ports-dir "/mnt/cruxmedia/crux/opt"					\
+		--ports-dir "$PWD/cruxmedia/crux/opt"					\
 											\
 		"alsa-lib"		"gdk-pixbuf"		"llvm"			\
 		"at-spi2-atk"		"glib"			"meson"			\
@@ -79,7 +71,7 @@ crux_gnulinux() {
 		"freetype"		"libxml2"					\
 		"fribidi"		"linux-firmware"				\
 											\
-		--ports-dir "/mnt/cruxmedia/crux/xorg"					\
+		--ports-dir "$PWD/cruxmedia/crux/xorg"					\
 											\
 		"glu"				"xorg-libxxf86misc"			\
 		"libdrm"			"xorg-libxxf86vm"			\
@@ -137,11 +129,6 @@ crux_gnulinux() {
 	mkinitramfs "$DIR/initramfs"							\
 											\
 		--overlay "$DIR/bootstrap"						\
-		--overlay "$DIR/configure"						\
-		--overlay "/root"							\
-		--overlay "/home"							\
-											\
-		--squashfs-xz								\
 											\
 		--output "$DIR/initramfs.img"
 
