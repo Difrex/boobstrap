@@ -10,6 +10,7 @@ mkbootstrap() {
 		"export") shift ; exportroot "$@" ;;
 		"crux_gnulinux") shift ; cruxstrap "$@" ;;
 		"archlinux_gnulinux"|"arch_gnulinux") shift ; pacstrap "$@" ;;
+		"manjaro_gnulinux") shift ; basestrap "$@" ;;
 		"debian_gnulinux") shift ; debootstrap "$@" ;;
 	esac
 }
