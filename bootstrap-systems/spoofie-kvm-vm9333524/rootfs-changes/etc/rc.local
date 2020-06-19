@@ -1,0 +1,8 @@
+#!/bin/bash
+#
+# /etc/rc.local: local multi-user startup script
+#
+
+localedef -i "en_US" -f "UTF-8" "en_US.UTF-8"
+
+# End of file
