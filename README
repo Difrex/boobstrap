@@ -1,66 +1,61 @@
+BOOBSTRAP is a scripts complex to for create bootable GNU/Linux images.
+
+Just take 3 (three) simple steps and you get own bootable GNU/Linux distro!
+And then you can boot via network (PXE) or CDROM / USB (bootable ISO).
+
+Written on pure POSIX shell. Confirmed by "Dash".
+
+Personal I living in tmpfs forever.
+On all my servers and desktops.
+
+Thats cool -- your system in tmpfs.
+Thats fast -- tmpfs is mean RAM.
+Thats secure -- if your system breaks just push "RESET" button.
+Thats no backup -- backup only your data, not a system.
+
+When my system breaks, or anybody does "rm -rf /", I just push "RESET" button,
+and then system boots again via PXE or from USB-flash (ISO).
+
+
+Software included:
+
+	* mkbootstrap -- Install "chroot" with any distro.
+
+	* mkinitramfs -- Create initrd / initramfs image.
+
+	* mkbootisofs -- Create bootable ISO from directory.
 
 Requirements:
 
-	grub2
-	grub2-efi
+	cpio
+	grub
+	grub-efi
 	dosfstools
+	squashfs-tools (optional)
 	xorriso
 
-Nice to have (optional):
+If you want to use SquashFS / OverlayFS, then in your kernel the following
+options must be enabled:
 
-	squashfs-tools
+CONFIG_OVERLAY_FS=y
+
+and
+
+CONFIG_SQUASHFS=y
+CONFIG_SQUASHFS_XZ=y
+
+But. You can just use tmpfs if you have enough RAM for your system, really
+doesnt matter. For example, Personal I use GNU/Linux on my home PC-router
+running in tmpfs with only 2GB RAM. And feel good.
 	
 Install:
 
-	make DESTDIR=/usr/local install
+	git clone https://github.com/sp00f1ng/boobstrap.git
+	cd boobstrap
+	make install
 
-Quick Start:
+Quick Start (running test):
 
-	./boobstrap/tests/crux-download-and-build
+	boobstrap/tests/crux_gnulinux-download-and-build
 
-	~3.5G free space required in directory where test script runs!
 
-Usage:
-
-	Download CRUX 3.5 ISO
-	mount ISO to /mnt/crux-media or something
-
-1. Install all core ports into chroot:
-
-	# mkdir chroot/
-
-	# mkbootstrap crux_gnulinux chroot/ \
-		--ports-dir /mnt/crux-media/crux/core
-
-2. Create initrd image:
-
-	# mkdir initramfs/
-
-	# mkinitramfs initramfs/ \
-		--overlay chroot/ \
-		--command "mksquashfs {source} {destination} -b 1048576 -comp xz -Xdict-size 100%"
-		--output $PWD/initrd
-
-3. Create ISO image with kernel and initrd:
-
-	# mkdir bootimage/
-	# mkdir bootimage/boot
-
-	# cp /boot/vmlinuz bootimage/boot/vmlinuz
-	# cp initrd bootimage/boot/initrd
-
-	# mkbootisofs bootimage/ > bootimage.iso
-
-4. ?????
-
-5. PROFIT!
-
-	# dd if=bootimage.iso of=/dev/sdX status=progress
-
-Reboot and you got own bootable linux distro in three simple steps!
-
-You can setup in chroot/ ANY. YES, ANY!!!
-linux distro and then create bootable ISO.
-But just do it manually, skip first step.
-
-More documenation (RU-only): https://www.linux.org.ru/forum/talks/15747003
