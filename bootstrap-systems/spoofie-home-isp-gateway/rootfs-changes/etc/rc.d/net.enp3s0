@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# /etc/rc.d/net.enp3s0: start/stop network interface
+#
+
+DEV=enp3s0
+ADDR=10.0.0.1
+MASK=8
+
+case $1 in
+	start)
+		/sbin/ip addr add ${ADDR}/${MASK} dev ${DEV} broadcast +
+		/sbin/ip link set ${DEV} up
+		;;
+	stop)
+		/sbin/ip link set ${DEV} down
+		/sbin/ip addr del ${ADDR}/${MASK} dev ${DEV}
+		;;
+	restart)
+		$0 stop
+		$0 start
+		;;
+	*)
+		echo "Usage: $0 [start|stop|restart]"
+		;;
+esac
+
+# End of file
+
