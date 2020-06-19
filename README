@@ -227,4 +227,27 @@ Now you can using "dd" to burning it on USB-flash.
 
 Hope you like it!
 
+For more examples how I use this look at the directories:
+
+	bootstrap-templates/
+	bootstrap-systems/
+
+Templates - its a scripts for create and save chroots, nothing else.
+
+Systems -- its a scripts for configure and create boot-ready images.
+
+For example, run template script:
+
+	# bootstrap-templates/crux_gnulinux-embedded.bbuild
+
+You got "crux_gnulinux-embedded.rootfs" as lightweight system for embedded use.
+Now you can use this template for configure all your embedded systems, adding
+some packages, setup config files and so on.
+
+So then, run system script:
+
+	# bootstrap-systems/default/crux_gnulinux.bbuild
+
+And now you create "production-ready" install.iso.
+
 GG
