@@ -49,7 +49,9 @@ runtest() {
 
 	mountmedia || kitkat "TEST FAILED: mount crux-3.5.iso $PWD/cruxmedia"
 
-	boobstrap build || kitkat "TEST FAILED: boobstrap build"
+	boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild || kitkat "TEST FAILED: boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild"
+
+	boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild || kitkat "TEST FAILED: boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild"
 
 	umountmedia || kitkat "TEST NOTICE: umount $PWD/cruxmedia"
 }

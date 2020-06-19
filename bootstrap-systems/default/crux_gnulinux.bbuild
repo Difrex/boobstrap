@@ -7,11 +7,7 @@ crux_gnulinux() {
 											\
 		--ports-dir "$PWD/cruxports"						\
 											\
-		"kexec-tools"		"linux"						\
-											\
-		--ports-dir "$PWD/cruxmedia/crux/opt"					\
-											\
-		"iputils"
+		"linux"
 
 	mkinitramfs "$DIR/initramfs"							\
 											\
