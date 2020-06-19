@@ -1,23 +1,27 @@
 BOOBSTRAP is a scripts complex to for create bootable GNU/Linux images.
 
 Just take 3 (three) simple steps and you get own bootable GNU/Linux distro!
-And then you can boot via network (PXE) or CDROM / USB (bootable ISO).
+And then you can boot it via network (PXE) or CDROM / USB (bootable ISO).
 
 Written on pure POSIX shell. Confirmed by "Dash".
 
-Personal I living in tmpfs forever.
-On all my servers and desktops.
+Personal I living in tmpfs forever. All my "enterpsise" living in tmpfs.
 
 Thats cool -- your system in tmpfs.
 Thats fast -- tmpfs is mean RAM.
+Thats smart -- setup only once, use foverer.
 Thats secure -- if your system breaks just push "RESET" button.
-Thats no backup -- backup only your data, not a system.
+Thats NO backups -- backup only your data, not a system.
 
-When my system breaks, or anybody does "rm -rf /", I just push "RESET" button,
-and then system boots again via PXE or from USB-flash (ISO).
+Don't afraid to using "root".
+Don't afraid to break system.
+Don't afraid to run shell-exploits.
+Don't afraid to do "rm -rf /".
 
+When my system breaks I push "RESET" button and system boots again.
+-- via PXE or from USB-flash (ISO).
 
-Software included:
+Software Included:
 
 	* mkbootstrap -- Install "chroot" with any distro.
 
@@ -25,7 +29,7 @@ Software included:
 
 	* mkbootisofs -- Create bootable ISO from directory.
 
-Requirements:
+Software Depends:
 
 	cpio
 	grub
@@ -34,8 +38,7 @@ Requirements:
 	squashfs-tools (optional)
 	xorriso
 
-If you want to use SquashFS / OverlayFS, then in your kernel the following
-options must be enabled:
+Also if you want to use SquashFS / OverlayFS enable following in kernel:
 
 CONFIG_OVERLAY_FS=y
 
@@ -44,18 +47,81 @@ and
 CONFIG_SQUASHFS=y
 CONFIG_SQUASHFS_XZ=y
 
-But. You can just use tmpfs if you have enough RAM for your system, really
-doesnt matter. For example, Personal I use GNU/Linux on my home PC-router
-running in tmpfs with only 2GB RAM. And feel good.
+But. You can just use tmpfs if you have enough RAM for your system.
+For example, personal I use GNU/Linux on my home PC-router with 2GB RAM.
 	
-Install:
+How to Install:
 
 	git clone https://github.com/sp00f1ng/boobstrap.git
 	cd boobstrap
 	make install
 
-Quick Start (running test):
+Quick Start (just a run test):
 
-	boobstrap/tests/crux_gnulinux-download-and-build
+	# boobstrap/tests/crux_gnulinux-download-and-build
+
+	# qemu-system-x86_64 -enable-kvm -m 1G -cdrom tmp.*/install.iso
+
+Now, lets talk about framework utilities.
+
+First, mkbootstrap.
+
+	# mkbootstrap <system> <directory> [options] [packages]
+
+This command installs "chroot" with the specified distro into directory.
+
+Where <system> can be:
+
+	crux_gnulinux (internal)
+	archlinux_gnulinux (external!!!)
+	manjaro_gnulinux (external!!!)
+	debian_gnulinux (external!!!)
+
+!!! Note: I wrote only crux_gnulinux wrapper, for another distros you must have
+installed pacstrap, basestrap, debootstrap and other *strap.
+
+<system> also can be "import" or "export" without reinstalling "chroots".
+
+crux_gnulinux options:
+
+	--ports-dir <directory> -- specify directory for search CRUX packages.
+
+	[any packages] -- specify packages to install.
+
+Example:
+
+1. Download CRUX iso.
+2. Mount to "./cruxmedia/"
+
+"./cruxmedia/" contains directories with packages:
+
+"./cruxmedia/crux/core"
+"./cruxmedia/crux/opt"
+"./cruxmedia/crux/xorg"
+
+Lets do install full "core".
+
+	# mkbootstrap crux_gnulinux `mktemp -d`		\
+							\
+		--ports-dir "./cruxmedia/crux/core"
+
+Or install only some packages from specified directories:
+
+	# mkbootstrap crux_gnulinux `mktemp -d`		\
+							\
+		--ports-dir "./cruxmedia/crux/core"	\
+		--ports-dir "./cruxmedia/crux/opt"	\
+							\
+		"linux" "bash" "iputils"
+
+Filename are allowed:
+
+	# mkbootstrap crux_gnulinux `mktemp -d`			\
+								\
+		"./cruxmedia/crux/core/linux#5x-1.pkg.tar.xz"	\
+		"./cruxmedia/crux/core/bash#5.1-1.pkg.tar.xz"
+
+If you choose another distro, like debian_gnulinux, you must use "debootstrap"
+options. mkbootstrap just switch to use "debootstrap", nothing else.
 
 
