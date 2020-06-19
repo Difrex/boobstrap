@@ -3,7 +3,7 @@ BINDIR = /usr/bin
 ETCDIR = /etc
 SHAREDIR = /usr/share
 
-VERSION = 1.0-rc3
+VERSION = 1.0
 NAME = boobstrap
 
 # Packages directory
