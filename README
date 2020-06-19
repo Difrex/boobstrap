@@ -250,6 +250,38 @@ So then, run system script:
 
 And now you gets "production-ready" install.iso.
 
+Use Keys:
+
+1. Create configuration at only one time. Save as script. Use forever.
+
+   1. Living in tmpfs.
+   2. Just reboot on system breaks.
+
+2. Update, just put new vmlinuz and initrd to the production server and run:
+
+   # kexec -l /vmlinuz --initrd=/initrd && kexec -e
+
+   for reload new confgiuration "on-the-fly".
+
+   1. Edit it locally.
+   2. Reconfigure by one command or script.
+   3. Testing on local QEMU or Bare-Metal.
+   4. Upload to the remote server.
+   5. Do kexec.
+
+3. Upgrade, from existing GNU/Linux to the same but running in tmpfs.
+
+   1. Create your configuration by one command or script.
+   2. Upload to the remote server (VDS or something).
+   3. # kexec -l /vmlinuz --initrd=/initrd
+   4. # systemctl kexec (Debian-like way)
+   5. Create own bootable ISO, upload via the hoster control panel.
+   6. Boot everytime from your own ISO with your configuration!
+   7. Format any existing /dev/vda disks, they are no more needed!
+   8. Use full disk-space as encrypt-data storage, without any OS.
+
+4. Create your own portable GNU/Linux distro! Nuff said.
+
 Friendly Asked Questions.
 
 Q: Why boobstrap?
