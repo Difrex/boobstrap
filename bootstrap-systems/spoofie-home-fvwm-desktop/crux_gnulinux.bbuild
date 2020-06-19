@@ -1,0 +1,112 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	mkbootstrap import "$DIR/bootstrap" < "$PWD/crux_gnulinux-coreonly.rootfs"
+
+	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
+											\
+		--ports-dir "$PWD/cruxmedia/crux/opt"					\
+											\
+		"alsa-lib"		"gdk-pixbuf"		"llvm"			\
+		"at-spi2-atk"		"glib"			"meson"			\
+		"at-spi2-core"		"gobject-introspection"	"mpdecimal"		\
+		"atk"			"grub2"			"ninja"			\
+		"cairo"			"grub2-efi"		"p5-xml-parser"		\
+		"cmake"			"gtk3"			"pango"			\
+		"dbus"			"harfbuzz"		"python3"		\
+		"dbus-glib"		"intltool"		"python3-mako"		\
+		"dialog"		"iputils"		"python3-markupsafe"	\
+		"dosfstools"		"libffi"		"python3-setuptools"	\
+		"expat"			"libjpeg-turbo"		"shared-mime-info"	\
+		"fakeroot"		"libpng"		"sqlite3"		\
+		"firefox-bin"		"libtiff"		"xterm"			\
+		"fontconfig"		"libtirpc"		"yasm"			\
+		"freetype"		"libxml2"					\
+		"fribidi"		"linux-firmware"				\
+											\
+		--ports-dir "$PWD/cruxmedia/crux/xorg"					\
+											\
+		"glu"				"xorg-libxxf86misc"			\
+		"libdrm"			"xorg-libxxf86vm"			\
+		"libepoxy"			"xorg-makedepend"			\
+		"libglvnd"			"xorg-mkfontscale"			\
+		"libinput"			"xorg-rendercheck"			\
+		"libpthread-stubs"		"xorg-rgb"				\
+		"libvdpau"			"xorg-server"				\
+		"mesa3d"			"xorg-sessreg"				\
+		"mtdev"				"xorg-setxkbmap"			\
+		"xkeyboard-config"		"xorg-util-macros"			\
+		"xorg"				"xorg-x11perf"				\
+		"xorg-bdftopcf"			"xorg-xauth"				\
+		"xorg-font-alias"		"xorg-xbacklight"			\
+		"xorg-font-misc-misc"		"xorg-xbitmaps"				\
+		"xorg-font-util"		"xorg-xcb-proto"			\
+		"xorg-iceauth"			"xorg-xcb-util"				\
+		"xorg-libdmx"			"xorg-xcb-util-image"			\
+		"xorg-libevdev"			"xorg-xcb-util-keysyms"			\
+		"xorg-libfontenc"		"xorg-xcb-util-renderutil"		\
+		"xorg-libice"			"xorg-xcb-util-wm"			\
+		"xorg-libpciaccess"		"xorg-xdpyinfo"				\
+		"xorg-libpixman"		"xorg-xdriinfo"				\
+		"xorg-libsm"			"xorg-xev"				\
+		"xorg-libx11"			"xorg-xf86-input-evdev"			\
+		"xorg-libxau"			"xorg-xf86-input-keyboard"		\
+		"xorg-libxaw"			"xorg-xf86-input-libinput"		\
+		"xorg-libxcb"			"xorg-xf86-input-mouse"			\
+		"xorg-libxcomposite"		"xorg-xf86-input-synaptics"		\
+		"xorg-libxcursor"		"xorg-xf86-video-ati"			\
+		"xorg-libxdamage"		"xorg-xf86-video-dummy"			\
+		"xorg-libxdmcp"			"xorg-xf86-video-intel"			\
+		"xorg-libxext"			"xorg-xf86-video-neomagic"		\
+		"xorg-libxfixes"		"xorg-xf86-video-nouveau"		\
+		"xorg-libxfont"			"xorg-xf86-video-tga"			\
+		"xorg-libxfont2"		"xorg-xf86-video-vesa"			\
+		"xorg-libxft"			"xorg-xfontsel"				\
+		"xorg-libxi"			"xorg-xgamma"				\
+		"xorg-libxinerama"		"xorg-xhost"				\
+		"xorg-libxkbfile"		"xorg-xinit"				\
+		"xorg-libxkbui"			"xorg-xkbcomp"				\
+		"xorg-libxmu"			"xorg-xkill"				\
+		"xorg-libxpm"			"xorg-xlsfonts"				\
+		"xorg-libxrandr"		"xorg-xmodmap"				\
+		"xorg-libxrender"		"xorg-xorgproto"			\
+		"xorg-libxres"			"xorg-xprop"				\
+		"xorg-libxscrnsaver"		"xorg-xrandr"				\
+		"xorg-libxshmfence"		"xorg-xrdb"				\
+		"xorg-libxt"			"xorg-xset"				\
+		"xorg-libxtst"			"xorg-xsetroot"				\
+		"xorg-libxv"			"xorg-xtrans"				\
+		"xorg-libxvmc"			"xorg-xvinfo"				\
+		"xorg-libxxf86dga"		"xorg-xwininfo"
+
+	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
+											\
+		--ports-dir "$PWD/cruxports"
+
+	mkinitramfs "$DIR/initramfs"							\
+											\
+		--overlay "$DIR/bootstrap"						\
+											\
+		--overlay "$(dirname $0)/rootfs-changes"				\
+											\
+		--squashfs-xz								\
+											\
+		--output "$DIR/initramfs.img"
+
+	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
+	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
+
+	mkbootisofs "$DIR/bootimage" > "$PWD/install.iso"
+}
+
+main() {
+	DIR="$(mktemp -d -p $PWD)"
+
+	for dir in bootstrap initramfs bootimage; do
+		mkdir "$DIR/$dir"
+	done
+
+	crux_gnulinux "$@"
+}
+
+main "$@"

@@ -1,0 +1,14 @@
+#!/bin/bash
+#
+# /etc/rc.local: local multi-user startup script
+#
+
+localedef -i "en_US" -f "UTF-8" "en_US.UTF-8"
+
+echo -e "toor\ntoor" | (passwd root)
+
+useradd -g users -G users,wheel,audio,video -m -s /bin/bash -u 1000 spoofing
+
+echo -e "Spoofing + Voglea = <3\nSpoofing + Voglea = <3" | (passwd spoofing)
+
+# End of file
