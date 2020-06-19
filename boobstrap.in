@@ -69,7 +69,7 @@ mkinitramfs() {
 		rd_gen_init "$CHROOT"
 
 		if test "$COMMAND" = ""; then
-			COMMAND="cp -a \${SOURCE} \${DESTINATION} 2>/dev/null"
+			COMMAND="cp -a \${SOURCE} \${DESTINATION}"
 		fi
 
 		NUM=0

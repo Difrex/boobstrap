@@ -1,4 +1,6 @@
-BOOBSTRAP is a scripts complex to for create bootable GNU/Linux images.
+GL HF
+
+BOOBSTRAP is a scripts complex to for creating bootable GNU/Linux images.
 
 Just take 3 (three) simple steps and you get own bootable GNU/Linux distro!
 And then you can boot it via network (PXE) or CDROM / USB (bootable ISO).
@@ -6,6 +8,8 @@ And then you can boot it via network (PXE) or CDROM / USB (bootable ISO).
 Written on pure POSIX shell. Confirmed by "Dash".
 
 Personal I living in tmpfs forever. All my "enterpsise" living in tmpfs.
+For example, personal I use GNU/Linux on my home PC-router with 2GB RAM.
+Yes, my "enterprise" its a PC-router with 2GB RAM running in tmpfs. HA-HA.
 
 Thats cool -- your system in tmpfs.
 Thats fast -- tmpfs is mean RAM.
@@ -48,8 +52,7 @@ CONFIG_SQUASHFS=y
 CONFIG_SQUASHFS_XZ=y
 
 But. You can just use tmpfs if you have enough RAM for your system.
-For example, personal I use GNU/Linux on my home PC-router with 2GB RAM.
-	
+
 How to Install:
 
 	git clone https://github.com/sp00f1ng/boobstrap.git
@@ -78,7 +81,7 @@ Where <system> can be:
 	debian_gnulinux (external!!!)
 
 !!! Note: I wrote only crux_gnulinux wrapper, for another distros you must have
-installed pacstrap, basestrap, debootstrap and other *strap.
+installed pacstrap, basestrap, debootstrap and other *straps.
 
 <system> also can be "import" or "export" without reinstalling "chroots".
 
@@ -124,4 +127,104 @@ Filename are allowed:
 If you choose another distro, like debian_gnulinux, you must use "debootstrap"
 options. mkbootstrap just switch to use "debootstrap", nothing else.
 
+For saving and loading feature you can use "export" and "import" commands.
 
+You have installed "chroot", you want save this state for future using, run:
+
+	# mkbootstrap export "chroot/" > "vanilla-chroot.rootfs"
+
+And then, when you want to setup another system from this "chroot", run:
+
+	# mkbootstrap import "just-another-chroot/" < "vanilla-chroot.rootfs"
+
+Its usable when you have only one system state and many configurations.
+
+Go next.
+
+Second, mkinitramfs.
+
+	# mkinitramfs <directory> [options]
+
+Command creates initrd / initramfs image from the directory.
+You can add overlays as another directories or SquashFS images.
+
+	--output "filename" -- filename to output image. Can output to STDOUT.
+
+	--standalone -- creates initramfs image from the directory "as is".
+
+	--overlay "directory" -- add overlay from directory.
+	                         can be so many as you want.
+
+	--command "command" -- filter what to do with every overlay.
+	                       {SOURCE} -- source directory
+	                       {DESTINATION} -- target directory or image.
+	                       by default: cp -a ${SOURCE} ${DESTINATION}
+
+	--squashfs-xz -- apply SquashFS + XZ filter for every overlay.
+
+Example:
+
+Well, we have installed distro in "chroot/", lets do this bootable into tmpfs.
+
+	# mkinitramfs `mktemp -d`	\
+					\
+		--overlay "chroot/"	\
+					\
+		--output "initrd"
+
+In this way mkinitramfs compile "chroot/" directory in "initrd" image "as is".
+After boot you got working "chroot/" in tmpfs via OverlayFS.
+
+	# mkinitramfs `mktemp -d`	\
+					\
+		--overlay "chroot/"	\
+					\
+		--squashfs-xz		\
+					\
+		--output "initrd"
+
+In this way mkinitramfs compile "chroot/" directory as SquashFS image.
+After boot you got working "chroot/" as SquashFS with OverlayFS.
+All changes you do in system stored in tmpfs because SquashFS is read-only.
+
+You can specify so many overlays as you want. For example, you can have overlay
+with system, overlay with configuration, overlay with your home-data and so on.
+
+	# mkinitramfs `mktemp -d`	\
+					\
+		--overlay "chroot/"	\
+		--overlay "changes/"	\
+		--overlay "/home"	\
+					\
+		--squashfs-xz		\
+					\
+		--output "initrd"
+
+Every overlay will be compressed as SquashFS image. Without --squash-xz its
+stored as directories, by default mkinitramfs runs "cp -a" command.
+If you want to use plain tmpfs (my personal prefer), - you welcome.
+
+As output now you have "initrd" image. At this moment you can boot it via PXE.
+Yes. Boot your full system via PXE and running in tmpfs by one initrd. Awesome.
+
+And finally you can create bootable ISO image.
+
+Third, mkbootisofs.
+
+mkbootisofs have no options for use, just creating BIOS / UEFI bootable ISO
+from specified directory. You must create this manually, then put kernel and
+initrd to this.
+
+	# mkdir ./ISO/
+	# mkdir ./ISO/boot
+	# cp /boot/vmlinuz ./ISO/boot/vmlinuz
+	# cp ./initrd ./ISO/boot/initrd
+	# mkbootisofs ISO/ > bootable.iso
+
+Now you can using "dd" to burning it on USB-flash.
+
+	# dd if=./bootable.iso of=/dev/sdX status=progress
+
+Hope you like it!
+
+GG
