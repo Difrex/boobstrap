@@ -5,6 +5,8 @@
 
 localedef -i "en_US" -f "UTF-8" "en_US.UTF-8"
 
+echo -e "toor\ntoor" | (passwd root)
+
 iptables -P FORWARD DROP
 iptables -N fw-interfaces
 iptables -N fw-open
