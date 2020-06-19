@@ -238,7 +238,7 @@ Systems -- its a scripts for configure and create production-ready images.
 
 For example, run template script:
 
-	# bootstrap-templates/crux_gnulinux-embedded.bbuild
+	# ./boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild
 
 You got "crux_gnulinux-embedded.rootfs" as lightweight system for embedded use.
 Now you can use this template for configure all your embedded systems, adding
@@ -246,7 +246,7 @@ some packages, setup config files and so on.
 
 So then, run system script:
 
-	# bootstrap-systems/default/crux_gnulinux.bbuild
+	# ./boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild
 
 And now you gets "production-ready" install.iso.
 
