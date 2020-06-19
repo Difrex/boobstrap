@@ -1,0 +1,40 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
+											\
+		--ports-dir "$PWD/cruxmedia/crux/core"					\
+											\
+		"acl"			"gzip"			"procps"		\
+		"attr"			"iana-etc"		"psmisc"		\
+		"bash"			"inetutils"		"rc"			\
+		"bzip2"			"iproute2"		"readline"		\
+		"ca-certificates"	"iptables"		"sed"			\
+		"coreutils"		"kbd"			"shadow"		\
+		"dash"			"kmod"			"start-stop-daemon"	\
+		"dcron"			"less"			"sysklogd"		\
+		"dhcpcd"		"libcap"		"sysvinit"		\
+		"e2fsprogs"		"libdevmapper"		"tar"			\
+		"eudev"			"libpcre"		"tzdata"		\
+		"exim"			"linux-pam"		"util-linux"		\
+		"file"			"lzo"			"vim"			\
+		"filesystem"		"ncurses"		"wget"			\
+		"findutils"		"openrdate"		"which"			\
+		"gawk"			"openssh"		"xz"			\
+		"glibc"			"openssl"		"zlib"			\
+		"grep"			"pkgutils"
+
+	mkbootstrap export "$DIR/bootstrap" > "$PWD/crux_gnulinux-embedded.rootfs"
+}
+
+main() {
+	DIR="$(mktemp -d -p $PWD)"
+
+	for dir in bootstrap; do
+		mkdir "$DIR/$dir" 2>/dev/null
+	done
+
+	crux_gnulinux "$@"
+}
+
+main "$@"

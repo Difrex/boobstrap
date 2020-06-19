@@ -5,13 +5,20 @@
 #
 
 mkbootstrap() {
-	case "$1" in
-		"import") shift ; importroot "$@" ;;
-		"export") shift ; exportroot "$@" ;;
-		"crux_gnulinux") shift ; cruxstrap "$@" ;;
-		"archlinux_gnulinux"|"arch_gnulinux") shift ; pacstrap "$@" ;;
-		"manjaro_gnulinux") shift ; basestrap "$@" ;;
-		"debian_gnulinux") shift ; debootstrap "$@" ;;
+	DO="$1"
+
+	case "$2" in
+		"") ;;
+		*) shift ;;
+	esac
+
+	case "$DO" in
+		"import") importroot "$@" ;;
+		"export") exportroot "$@" ;;
+		"crux_gnulinux") cruxstrap "$@" ;;
+		"archlinux_gnulinux"|"arch_gnulinux") pacstrap "$@" ;;
+		"manjaro_gnulinux") basestrap "$@" ;;
+		"debian_gnulinux") debootstrap "$@" ;;
 	esac
 }
 
@@ -29,8 +36,8 @@ mkinitramfs() {
 			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
 			"--command") COMMAND="$2" ; shift ;;
-			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet 2>/dev/null" ;;
-			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION} -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100% 2>/dev/null" ;;
+			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SquashFS -quiet" ;;
+			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SquashFS -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
 			*)
 				if test "$CHROOT" = ""; then
 					CHROOT="$1"
@@ -68,11 +75,12 @@ mkinitramfs() {
 		NUM=0
 
 		echo "Prepare overlays" | msg -2
+		mkdir -p "$CHROOT/media/system"
 		hi
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
-			DESTINATION="$CHROOT/overlays/$NUM-$(basename $overlay)"
+			DESTINATION="$CHROOT/media/system/$NUM-$(basename $overlay)"
 			echo "$COMMAND" | msg -2 --foreground "Light Blue"
 			eval "$COMMAND" 1>&2
 			CODE="$?"
@@ -456,18 +464,14 @@ rd_copy_bin() {
 	echo "Copying system files" | msg -2
 	hi
 	SYSTEMWIDE_BINARIES="$(initramfs_systemwide_bin 2>/dev/null)"
-	if test "$SYSTEMWIDE_BINARIES" = ""; then
-		SYSTEMWIDE_BINARIES="sh switch_root mount umount mkdir rmdir mv"
-	fi
 	for bin in $SYSTEMWIDE_BINARIES; do
-		which $bin 1>/dev/null 2>/dev/null
+		which "$bin" 1>/dev/null 2>/dev/null
 		CODE="$?"
 		case "$CODE" in
 			"0")
 				echo "$bin" | msg -2 --foreground "Light Blue"
 				;;
 			*)
-				CODE=""
 				echo "$bin" | msg -2 --foreground "Light Red" --highlight
 				hi
 				echo "Failure [$CODE]" | msg -2 --foreground "Brown"
@@ -475,7 +479,7 @@ rd_copy_bin() {
 				;;
 		esac
 		deps=""
-		for dep in $(lddtree $(which $bin)); do
+		for dep in $(lddtree $(which $bin 2>/dev/null)); do
 			deps="$deps $dep"
 
 			if test -f "$1$dep"; then
@@ -526,7 +530,7 @@ rd_gen_init() {
 rd_make_dir() {
 	echo "Creating system directories" | msg -2
 	hi
-	for dir in "proc" "sys" "dev" "run" "merged" "overlay" "overlays"; do
+	for dir in "proc" "sys" "dev" "run"; do
 		mkdir -p $1/$dir 2>/dev/null
 		CODE="$?"
 		case "$CODE" in
@@ -542,49 +546,6 @@ rd_make_dir() {
 		esac
 	done
 	lo
-}
-
-boobstrap_build() {
-	DIR=""
-	TEMPLATE=""
-	COMMAND=""
-
-	while test "$1"; do
-		case "$1" in
-			"--template") TEMPLATE="$2" ; shift ;;
-		esac
-		shift
-	done
-
-	if test "$DIR" = ""; then
-		DIR="$(mktemp -d -p $PWD 2>/dev/null)"
-	fi
-
-	if test -f "/usr/share/boobstrap/bootstrap-templates/$TEMPLATE"; then
-		TEMPLATE="/usr/share/boobstrap/bootstrap-templates/$TEMPLATE"
-	elif test -f "$TEMPLATE"; then
-		TEMPLATE="$(realpath $TEMPLATE)"
-	elif test "$TEMPLATE" = ""; then
-		TEMPLATE="/usr/share/boobstrap/bootstrap-templates/default.bbuild"
-	else
-		echo "no such file" | msg -2
-	fi
-
-	if test -f "$TEMPLATE"; then
-		echo "Building configuration [$TEMPLATE]" | msg -2
-		hi
-		eval $TEMPLATE $DIR
-		STATUS="$?"
-		lo
-		case "$STATUS" in
-			"0") echo "Done [$TEMPLATE]" | msg -2 ;;
-			*) echo "Failed [$TEMPLATE]" | msg -2 ;;
-		esac
-	fi
-}
-
-boobstrap_run() {
-	boobstrap_build "$@"
 }
 
 importroot() {
@@ -750,17 +711,9 @@ main() {
 
 		PROGNAME="$1"
 
-		if test "$2"; then
-			shift
-		fi
-
-		case "$PROGNAME" in
-			"build") boobstrap_build "$@" ;;
-			"run") boobstrap_run "$@" ;;
-			"start") boobstrap_start "$@" ;;
-			"stop") boobstrap_stop "$@" ;;
-			"list") boobstrap_list "$@" ;;
-			"--help"|"-h") rtfm ;;
+		case "$2" in
+			"") ;;
+			*) shift ;;
 		esac
 
 	fi
@@ -777,7 +730,7 @@ rtfm() {
 }
 
 preflight_checks() {
-	for dep in "grub-mkstandalone" "mkdosfs" "xorriso"; do
+	for dep in "cpio" "grub-mkstandalone" "mkdosfs" "xorriso"; do
 		which "$dep" 1>/dev/null 2>/dev/null
 		case "$?" in
 			"0") ;;
@@ -786,7 +739,7 @@ preflight_checks() {
 	done
 
 	if test "$TEST" = "x"; then
-		echo "install: dosfstools, grub2, grub2-efi, xorriso."
+		echo "install: cpio, dosfstools, grub, grub-efi, xorriso."
 		echo "nice to have (optional): squashfs-tools."
 		echo "if you sure is it installed check for PATH variable"
 		echo "some utilities requires root priveleges"

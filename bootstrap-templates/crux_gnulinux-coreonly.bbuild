@@ -1,0 +1,21 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
+											\
+		--ports-dir "$PWD/cruxmedia/crux/core"					\
+
+	mkbootstrap export "$DIR/bootstrap" > "$PWD/crux_gnulinux-coreonly.rootfs"
+}
+
+main() {
+	DIR="$(mktemp -d -p $PWD)"
+
+	for dir in bootstrap; do
+		mkdir "$DIR/$dir" 2>/dev/null
+	done
+
+	crux_gnulinux "$@"
+}
+
+main "$@"
