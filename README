@@ -44,12 +44,12 @@ Software Depends:
 
 Also if you want to use SquashFS / OverlayFS enable following in kernel:
 
-CONFIG_OVERLAY_FS=y
+	CONFIG_OVERLAY_FS=y
 
 and
 
-CONFIG_SQUASHFS=y
-CONFIG_SQUASHFS_XZ=y
+	CONFIG_SQUASHFS=y
+	CONFIG_SQUASHFS_XZ=y
 
 But. You can just use tmpfs if you have enough RAM for your system.
 
@@ -121,7 +121,7 @@ Filename are allowed:
 
 	# mkbootstrap crux_gnulinux `mktemp -d`			\
 								\
-		"./cruxmedia/crux/core/linux#5x-1.pkg.tar.xz"	\
+		"./linux#5x-1.pkg.tar.xz"			\
 		"./cruxmedia/crux/core/bash#5.1-1.pkg.tar.xz"
 
 If you choose another distro, like debian_gnulinux, you must use "debootstrap"
@@ -129,11 +129,11 @@ options. mkbootstrap just switch to use "debootstrap", nothing else.
 
 For saving and loading feature you can use "export" and "import" commands.
 
-You have installed "chroot", you want save this state for future using, run:
+You have installed "chroot", and you want to save state for future using, run:
 
 	# mkbootstrap export "chroot/" > "vanilla-chroot.rootfs"
 
-And then, when you want to setup another system from this "chroot", run:
+And then, when you want to setup another system from this "chroot/", run:
 
 	# mkbootstrap import "just-another-chroot/" < "vanilla-chroot.rootfs"
 
@@ -234,7 +234,7 @@ For more examples how I use this look at the directories:
 
 Templates - its a scripts for create and save chroots, nothing else.
 
-Systems -- its a scripts for configure and create boot-ready images.
+Systems -- its a scripts for configure and create production-ready images.
 
 For example, run template script:
 
@@ -248,6 +248,11 @@ So then, run system script:
 
 	# bootstrap-systems/default/crux_gnulinux.bbuild
 
-And now you create "production-ready" install.iso.
+And now you gets "production-ready" install.iso.
+
+Friendly Asked Questions.
+
+Q: Why boobstrap?
+A: I am a white heterosexual men and love womens. But they don't love me. =(
 
 GG
