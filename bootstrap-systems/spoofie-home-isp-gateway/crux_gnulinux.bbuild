@@ -25,7 +25,7 @@ crux_gnulinux() {
 	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
 	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
 
-	mkbootisofs "$DIR/bootimage" > "$PWD/install.iso"
+	mkbootisofs "$DIR/bootimage" > "$DIR/install.iso"
 }
 
 main() {
