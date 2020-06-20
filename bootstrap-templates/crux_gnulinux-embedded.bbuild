@@ -16,13 +16,12 @@ crux_gnulinux() {
 		"dhcpcd"		"libcap"		"sysvinit"		\
 		"e2fsprogs"		"libdevmapper"		"tar"			\
 		"eudev"			"libpcre"		"tzdata"		\
-		"exim"			"linux-pam"		"util-linux"		\
-		"file"			"lzo"			"vim"			\
-		"filesystem"		"ncurses"		"wget"			\
-		"findutils"		"openrdate"		"which"			\
-		"gawk"			"openssh"		"xz"			\
-		"glibc"			"openssl"		"zlib"			\
-		"grep"			"pkgutils"
+		"file"			"linux-pam"		"util-linux"		\
+		"filesystem"		"lzo"			"vim"			\
+		"findutils"		"ncurses"		"wget"			\
+		"gawk"			"openssh"		"which"			\
+		"glibc"			"openssl"		"xz"			\
+		"grep"			"pkgutils"		"zlib"
 
 	mkbootstrap export "$DIR/bootstrap" > "$PWD/crux_gnulinux-embedded.rootfs"
 }

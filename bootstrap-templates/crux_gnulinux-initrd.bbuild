@@ -1,0 +1,29 @@
+#! /bin/sh -
+
+crux_gnulinux() {
+	mkbootstrap import "$DIR/initramfs" < "$PWD/crux_gnulinux-embedded.rootfs"
+
+	echo "#!/sbin/init" > "$DIR/initramfs/init"
+	chmod +x "$DIR/initramfs/init"
+
+	if test -f "$HOME/.ssh/id_rsa.pub"; then
+		mkdir "$DIR/initramfs/root/.ssh"
+		cp "$HOME/.ssh/id_rsa.pub" "$DIR/initramfs/root/.ssh/authorized_keys"
+	fi
+
+	sed -i "s/SERVICES.*/SERVICES=(lo net crond sshd)/g" "$DIR/initramfs/etc/rc.conf"
+
+	mkinitramfs export "$DIR/initramfs" > "$PWD/crux_gnulinux-initramfs.rootfs"
+}
+
+main() {
+	DIR="$(mktemp -d -p $PWD)"
+
+	for dir in bootstrap initramfs bootimage; do
+		mkdir "$DIR/$dir"
+	done
+
+	crux_gnulinux "$@"
+}
+
+main "$@"
