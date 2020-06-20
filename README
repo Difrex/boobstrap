@@ -1,39 +1,39 @@
 GL HF
 
-BOOBSTRAP is a scripts complex to for creating bootable GNU/Linux images.
+BOOBSTRAP is a scripts complex for creating bootable GNU/Linux images.
 
-Just take 3 (three) simple steps and you get own bootable GNU/Linux distro!
-And then you can boot it via network (PXE) or CDROM / USB (bootable ISO).
+Just take 3 (three) simple steps and you'll get own bootable GNU/Linux distro!
+And then you will be able to boot it via a network (PXE) or CDROM / USB (bootable ISO).
 
-Written on pure POSIX shell. Confirmed by "Dash".
+Written in the pure POSIX shell. Confirmed by "Dash".
 
-Personal I living in tmpfs forever. All my "enterpsise" living in tmpfs.
-For example, personal I use GNU/Linux on my home PC-router with 2GB RAM.
-Yes, my "enterprise" its a PC-router with 2GB RAM running in tmpfs. HA-HA.
+Personally, I am living in tmpfs forever. All my "enterprises" are living in tmpfs.
+For example, personally, I use GNU/Linux on my home PC-router with 2GB of RAM.
+Yes, my "enterprise" is a PC-router with 2GB RAM running in tmpfs. HA-HA.
 
-Thats cool -- your system in tmpfs.
-Thats fast -- tmpfs is mean RAM.
-Thats smart -- setup only once, use foverer.
-Thats secure -- if your system breaks just push "RESET" button.
-Thats NO backups -- backup only your data, not a system.
+That's cool -- your system is in the tmpfs.
+That's fast -- tmpfs means RAM.
+That's smart -- set up only once, use forever.
+That's secure -- if your system breaks, just push the "RESET" button.
+That's NO backups -- back up only your data, not the system.
 
-Don't afraid to using "root".
-Don't afraid to break system.
-Don't afraid to run shell-exploits.
-Don't afraid to do "rm -rf /".
+Don't be afraid to use "root".
+Don't be afraid to break the system.
+Don't be afraid to run shell-exploits.
+Don't be afraid to do "rm -rf /".
 
-When my system breaks I push "RESET" button and system boots again.
--- via PXE or from USB-flash (ISO).
+When my system breaks I push the "RESET" button and the system boots again.
+-- via PXE or from a USB-flash (ISO).
 
 Software Included:
 
 	* mkbootstrap -- Install "chroot" with any distro.
 
-	* mkinitramfs -- Create initrd / initramfs image.
+	* mkinitramfs -- Create an initrd / initramfs image.
 
-	* mkbootisofs -- Create bootable ISO from directory.
+	* mkbootisofs -- Create a bootable ISO from a directory.
 
-Software Depends:
+Software Dependencies:
 
 	cpio
 	grub
@@ -42,7 +42,7 @@ Software Depends:
 	squashfs-tools (optional)
 	xorriso
 
-Also if you want to use SquashFS / OverlayFS enable following in kernel:
+Also if you want to use SquashFS / OverlayFS, enable the following in your kernel:
 
 	CONFIG_OVERLAY_FS=y
 
@@ -65,13 +65,13 @@ Quick Start (just a run test):
 
 	# qemu-system-x86_64 -enable-kvm -m 1G -cdrom tmp.*/install.iso
 
-Now, lets talk about framework utilities.
+Now, let's talk about framework utilities.
 
 First, mkbootstrap.
 
 	# mkbootstrap <system> <directory> [options] [packages]
 
-This command installs "chroot" with the specified distro into directory.
+This command installs a "chroot" with the specified distro into a directory.
 
 Where <system> can be:
 
@@ -80,8 +80,8 @@ Where <system> can be:
 	manjaro_gnulinux (external!!!)
 	debian_gnulinux (external!!!)
 
-!!! Note: I wrote only crux_gnulinux wrapper, for another distros you must have
-installed pacstrap, basestrap, debootstrap and other *straps.
+!!! Note: I wrote only crux_gnulinux wrapper, for other distros you must have
+pacstrap, basestrap, debootstrap, and other *straps installed.
 
 <system> also can be "import" or "export" without reinstalling "chroots".
 
@@ -93,8 +93,8 @@ crux_gnulinux options:
 
 Example:
 
-1. Download CRUX iso.
-2. Mount to "./cruxmedia/"
+1. Download a CRUX iso.
+2. Mount it to the "./cruxmedia/"
 
 "./cruxmedia/" contains directories with packages:
 
@@ -102,13 +102,13 @@ Example:
 "./cruxmedia/crux/opt"
 "./cruxmedia/crux/xorg"
 
-Lets do install full "core".
+Let's install a full "core".
 
 	# mkbootstrap crux_gnulinux `mktemp -d`		\
 							\
 		--ports-dir "./cruxmedia/crux/core"
 
-Or install only some packages from specified directories:
+Or install only some packages from the specified directories:
 
 	# mkbootstrap crux_gnulinux `mktemp -d`		\
 							\
@@ -117,19 +117,19 @@ Or install only some packages from specified directories:
 							\
 		"linux" "bash" "iputils"
 
-Filename are allowed:
+Filenames are allowed:
 
 	# mkbootstrap crux_gnulinux `mktemp -d`			\
 								\
 		"./linux#5x-1.pkg.tar.xz"			\
 		"./cruxmedia/crux/core/bash#5.1-1.pkg.tar.xz"
 
-If you choose another distro, like debian_gnulinux, you must use "debootstrap"
-options. mkbootstrap just switch to use "debootstrap", nothing else.
+If you choose another distro like debian_gnulinux, you must use "debootstrap"
+options. mkbootstrap just switches to use the "debootstrap", nothing else.
 
-For saving and loading feature you can use "export" and "import" commands.
+For saving and loading features you can use "export" and "import" commands.
 
-You have installed "chroot", and you want to save state for future using, run:
+You have installed a "chroot" and you want to save the state for future use, run:
 
 	# mkbootstrap export "chroot/" > "vanilla-chroot.rootfs"
 
@@ -137,7 +137,7 @@ And then, when you want to setup another system from this "chroot/", run:
 
 	# mkbootstrap import "just-another-chroot/" < "vanilla-chroot.rootfs"
 
-Its usable when you have only one system state and many configurations.
+It's usable when you only have one system state and many configurations.
 
 Go next.
 
@@ -145,15 +145,15 @@ Second, mkinitramfs.
 
 	# mkinitramfs <directory> [options]
 
-Command creates initrd / initramfs image from the directory.
-You can add overlays as another directories or SquashFS images.
+This command creates an initrd / initramfs image from the directory.
+You can add overlays as well as directories or SquashFS images.
 
-	--output "filename" -- filename to output image. Can output to STDOUT.
+	--output "filename" -- filename to output the image. Can output to a STDOUT.
 
-	--standalone -- creates initramfs image from the directory "as is".
+	--standalone -- create an initramfs image from the the directory "as is".
 
-	--overlay "directory" -- add overlay from directory.
-	                         can be so many as you want.
+	--overlay "directory" -- add an overlay from the directory.
+	                         can be used so many times as you want.
 
 	--command "command" -- filter what to do with every overlay.
 	                       {SOURCE} -- source directory
@@ -164,7 +164,7 @@ You can add overlays as another directories or SquashFS images.
 
 Example:
 
-Well, we have installed distro in "chroot/", lets do this bootable into tmpfs.
+Well, we have installed a distro into "chroot/", let's make it bootable into a tmpfs.
 
 	# mkinitramfs `mktemp -d`	\
 					\
@@ -172,8 +172,8 @@ Well, we have installed distro in "chroot/", lets do this bootable into tmpfs.
 					\
 		--output "initrd"
 
-In this way mkinitramfs compile "chroot/" directory in "initrd" image "as is".
-After boot you got working "chroot/" in tmpfs via OverlayFS.
+This way the mkinitramfs compiles a "chroot/" directory into an "initrd" image "as is".
+After booting it you will get a working "chroot/" in a tmpfs over OverlayFS.
 
 	# mkinitramfs `mktemp -d`	\
 					\
@@ -183,12 +183,12 @@ After boot you got working "chroot/" in tmpfs via OverlayFS.
 					\
 		--output "initrd"
 
-In this way mkinitramfs compile "chroot/" directory as SquashFS image.
-After boot you got working "chroot/" as SquashFS with OverlayFS.
-All changes you do in system stored in tmpfs because SquashFS is read-only.
+This way the mkinitramfs compiles a "chroot/" directory as a SquashFS image.
+After booting it you will get a working "chroot/" as a SquashFS with an OverlayFS.
+All changes you will do in that system are stored in a tmpfs because the SquashFS is read-only.
 
-You can specify so many overlays as you want. For example, you can have overlay
-with system, overlay with configuration, overlay with your home-data and so on.
+You can also specify as many overlays as you want. For example, you can have an overlay
+with the system, an overlay with the configuration, an overlay with your home-data, and so on.
 
 	# mkinitramfs `mktemp -d`	\
 					\
@@ -200,20 +200,20 @@ with system, overlay with configuration, overlay with your home-data and so on.
 					\
 		--output "initrd"
 
-Every overlay will be compressed as SquashFS image. Without --squash-xz its
-stored as directories, by default mkinitramfs runs "cp -a" command.
-If you want to use plain tmpfs (my personal prefer), - you welcome.
+Every overlay will be compressed into a SquashFS image. Without --squash-xz it's
+stored as directories, by default mkinitramfs runs the "cp -a" command.
+If you want it to use plain tmpfs (my personal preference), - you are welcome.
 
-As output now you have "initrd" image. At this moment you can boot it via PXE.
-Yes. Boot your full system via PXE and running in tmpfs by one initrd. Awesome.
+As an output, you have "initrd" image now. At this moment you can boot it via PXE.
+Yes. Boot your full system via PXE up and running in a tmpfs by one initrd. Awesome.
 
-And finally you can create bootable ISO image.
+And finally, you can create a bootable ISO image.
 
 Third, mkbootisofs.
 
-mkbootisofs have no options for use, just creating BIOS / UEFI bootable ISO
-from specified directory. You must create this manually, then put kernel and
-initrd to this.
+mkbootisofs have no options for this usage, just creating a BIOS / UEFI bootable ISO
+from the specified directory. You must create it manually, then put a kernel and
+an initrd into it.
 
 	# mkdir ./ISO/
 	# mkdir ./ISO/boot
@@ -221,70 +221,70 @@ initrd to this.
 	# cp ./initrd ./ISO/boot/initrd
 	# mkbootisofs ISO/ > bootable.iso
 
-Now you can using "dd" to burning it on USB-flash.
+Now you can using "dd" to burn it on a USB-flash.
 
 	# dd if=./bootable.iso of=/dev/sdX status=progress
 
-Hope you like it!
+I hope you like it!
 
 For more examples how I use this look at the directories:
 
 	bootstrap-templates/
 	bootstrap-systems/
 
-Templates - its a scripts for create and save chroots, nothing else.
+Templates - scripts for chroots creation and saving, nothing else.
 
-Systems -- its a scripts for configure and create production-ready images.
+Systems -- scripts for production-ready images configuration and creation.
 
-For example, run template script:
+For example, run a template script:
 
 	# ./boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild
 
-You got "crux_gnulinux-embedded.rootfs" as lightweight system for embedded use.
-Now you can use this template for configure all your embedded systems, adding
-some packages, setup config files and so on.
+You will get a "crux_gnulinux-embedded.rootfs" as a lightweight system for embedded use.
+Now you can use this template to configure all your embedded systems, adding
+some packages, setting up config files, and so on.
 
-So then, run system script:
+So then, run a system script:
 
 	# ./boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild
 
-And now you gets "production-ready" install.iso.
+And now you will get a "production-ready" install.iso.
 
-Use Keys:
+Use cases:
 
-1. Create configuration at only one time. Save as script. Use forever.
+1. Create a configuration once. Save it as a script. Use forever.
 
    1. Living in tmpfs.
-   2. Just reboot on system breaks.
+   2. Just reboot upon system breaks.
 
-2. Update, just put new vmlinuz and initrd to the production server and run:
+2. Update; just put a new vmlinuz and initrd to the production server and run:
 
    # kexec -l /vmlinuz --initrd=/initrd && kexec -e
 
-   for reload new confgiuration "on-the-fly".
+   to reload new confgiuration "on-the-fly".
 
    1. Edit it locally.
-   2. Reconfigure by one command or script.
-   3. Testing on local QEMU or Bare-Metal.
-   4. Upload to the remote server.
-   5. Do kexec.
+   2. Reconfigure by one command or a script.
+   3. Test on a local QEMU or Bare-Metal.
+   4. Upload it to the remote server.
+   5. Do a kexec.
 
-3. Upgrade, from existing GNU/Linux to the same but running in tmpfs.
+3. Upgrade, from an existing GNU/Linux to the same but running in tmpfs.
 
-   1. Create your configuration by one command or script.
+   1. Create your configuration by one command or a script.
    2. Upload to the remote server (VDS or something).
    3. # kexec -l /vmlinuz --initrd=/initrd
-   4. # systemctl kexec (Debian-like way)
-   5. Create own bootable ISO, upload via the hoster control panel.
-   6. Boot everytime from your own ISO with your configuration!
+   4. # systemctl kexec (a Debian-like way)
+   5. Create your own bootable ISO, upload it via the hoster's control panel.
+   6. Boot it every time from your own ISO with your configuration!
    7. Format any existing /dev/vda disks, they are no more needed!
-   8. Use full disk-space as encrypt-data storage, without any OS.
+   8. Use the full disk-space as encrypt-data storage, without any OS.
 
 4. Create your own portable GNU/Linux distro! Nuff said.
 
 Friendly Asked Questions.
 
 Q: Why boobstrap?
-A: I am a white heterosexual men and love womens. But they don't love me. =(
+A: I am a white heterosexual man and love women. But they don't love me. =(
 
 GG
