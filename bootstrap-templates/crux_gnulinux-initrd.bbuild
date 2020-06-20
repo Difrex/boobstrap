@@ -13,7 +13,7 @@ crux_gnulinux() {
 
 	sed -i "s/SERVICES.*/SERVICES=(lo net crond sshd)/g" "$DIR/initramfs/etc/rc.conf"
 
-	mkinitramfs export "$DIR/initramfs" > "$PWD/crux_gnulinux-initrd.rootfs"
+	mkbootstrap export "$DIR/initramfs" > "$PWD/crux_gnulinux-initrd.rootfs"
 }
 
 main() {
