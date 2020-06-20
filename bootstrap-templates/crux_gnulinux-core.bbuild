@@ -5,7 +5,7 @@ crux_gnulinux() {
 											\
 		--ports-dir "$PWD/cruxmedia/crux/core"
 
-	mkbootstrap export "$DIR/bootstrap" > "$PWD/crux_gnulinux-coreonly.rootfs"
+	mkbootstrap export "$DIR/bootstrap" > "$PWD/crux_gnulinux-core.rootfs"
 }
 
 main() {
