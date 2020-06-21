@@ -1,4 +1,4 @@
-#! /bin/sh -
+#! /usr/bin/env sh
 
 getsources() {
 	wget -T 5 'http://dl.voglea.com/dist/crux_gnulinux/amd64/vendor/crux-3.5-updated.iso' || return 1
@@ -53,9 +53,9 @@ runtest() {
 
 	mountmedia || kitkat "TEST FAILED: mount crux-3.5.iso $PWD/cruxmedia"
 
-	boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild || kitkat "TEST FAILED: boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild"
+	boobstrap/bootstrap-templates/crux_gnulinux-embedded/crux_gnulinux-embedded.bbuild || kitkat "TEST FAILED: boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild"
 
-	boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild || kitkat "TEST FAILED: boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild"
+	boobstrap/bootstrap-systems/crux_gnulinux-default/crux_gnulinux-default.bbuild || kitkat "TEST FAILED: boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild"
 
 	umountmedia || kitkat "TEST NOTICE: umount $PWD/cruxmedia"
 }
