@@ -3,7 +3,7 @@ BINDIR = /usr/bin
 ETCDIR = /etc
 SHAREDIR = /usr/share
 
-VERSION = 1.0
+VERSION = 1.1-rc1
 NAME = boobstrap
 
 # Packages directory
@@ -23,9 +23,13 @@ install: all
 	install -D -m 0755 boobstrap.in $(DESTDIR)$(BINDIR)/boobstrap
 	install -D -m 0644 boobstrap.conf $(DESTDIR)$(ETCDIR)/boobstrap/boobstrap.conf
 	install -D -m 0644 boobstrap.conf $(DESTDIR)$(SHAREDIR)/boobstrap/boobstrap.conf.default
+	install -D -m 0644 init.in $(DESTDIR)$(ETCDIR)/boobstrap/init
+	install -D -m 0644 init.in $(DESTDIR)$(SHAREDIR)/boobstrap/init.default
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkbootstrap
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkinitramfs
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkbootisofs
+	ln -sf boobstrap $(DESTDIR)$(BINDIR)/exportroot
+	ln -sf boobstrap $(DESTDIR)$(BINDIR)/importroot
 
 clean:
 	rm -f boobstrap

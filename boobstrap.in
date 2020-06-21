@@ -1,8 +1,4 @@
-#! /bin/sh -
-
-#
-# CORE
-#
+#! /usr/bin/env sh
 
 mkbootstrap() {
 	DO="$1"
@@ -13,12 +9,37 @@ mkbootstrap() {
 	esac
 
 	case "$DO" in
-		"import") importroot "$@" ;;
-		"export") exportroot "$@" ;;
 		"crux_gnulinux") cruxstrap "$@" ;;
 		"archlinux_gnulinux"|"arch_gnulinux") pacstrap "$@" ;;
 		"manjaro_gnulinux") basestrap "$@" ;;
 		"debian_gnulinux") debootstrap "$@" ;;
+		"--help")
+			cat <<EOF
+$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+Usage: mkbootstrap <system> <directory> [options]... [packages]...
+Installs selected system into the directory.
+
+  <system>                   native supported OS:
+                               crux_gnulinux
+
+                             other supported OS:
+                                 archlinux_gnulinux *
+                                 manjaro_gnulinux *
+                                 debian_gnulinux *
+
+                             requires external wrappers i.e.:
+                             pacstrap, debootstrap and so on
+
+  crux_gnulinux options:
+
+  --ports-dir <directory>    directory with packages for CRUX
+
+  [packages]                 packages to install.
+                               can be package name or filename
+                               if empty so then full selected
+                               --ports-dir will be installed
+EOF
+;;
 	esac
 }
 
@@ -36,8 +57,27 @@ mkinitramfs() {
 			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
 			"--command") COMMAND="$2" ; shift ;;
-			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SquashFS -quiet" ;;
-			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SquashFS -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
+			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SQUASHFS -quiet" ;;
+			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SQUASHFS -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
+			"--help"|"-h")
+				cat <<EOF
+$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+Usage: mkinitramfs <directory> [options]...
+Creates bootable ram disk image from the directory.
+
+  --output <file>            specify output file,
+                               by default outputs to STDOUT
+
+  --standalone               uses directory "as is"
+
+  --overlay                  add overlay
+
+  --command                  set command
+
+  --squashfs,                pre-defined command mksquashfs
+  --squashfs-xz		     pre-defined command mksquashfs
+EOF
+				;;
 			*)
 				if test "$CHROOT" = ""; then
 					CHROOT="$1"
@@ -69,18 +109,18 @@ mkinitramfs() {
 		rd_gen_init "$CHROOT"
 
 		if test "$COMMAND" = ""; then
-			COMMAND="cp -a \${SOURCE} \${DESTINATION}"
+			COMMAND="cp -a \${SOURCE} \${DESTINATION} 2>/dev/null"
 		fi
 
 		NUM=0
 
 		echo "Prepare overlays" | msg -2
-		mkdir -p "$CHROOT/media/system"
+		mkdir -p "$CHROOT/media/system/overlays"
 		hi
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
-			DESTINATION="$CHROOT/media/system/$NUM-$(basename $overlay)"
+			DESTINATION="$CHROOT/media/system/overlays/$NUM-$(basename $overlay)"
 			echo "$COMMAND" | msg -2 --foreground "Light Blue"
 			eval "$COMMAND" 1>&2
 			CODE="$?"
@@ -106,11 +146,11 @@ mkinitramfs() {
 
 	cd "$CHROOT" 2>/dev/null
 	case "$IMAGE" in
-		""|"-") find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null ; STATUS="$?" ;;
-		*) find . -print0 | cpio --create --format "newc" --null --quiet > "$IMAGE" 2>/dev/null ; STATUS="$?" ;;
+		""|"-") find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null ; CODE="$?" ;;
+		*) find . -print0 | cpio --create --format "newc" --null --quiet > "$IMAGE" 2>/dev/null ; CODE="$?" ;;
 	esac
 	hi
-	case "$STATUS" in
+	case "$CODE" in
 		"0")
 			echo "Success" | msg -2 --foreground "Light Green"
 			;;
@@ -127,19 +167,6 @@ mkinitramfs() {
 	echo "Done [$CHROOT]" | msg -2
 }
 
-iso_bootloader_conf() {
-	if test -f "$1/boot/grub.cfg"; then
-		echo "Keep pre-installed configuration" | msg -2 --foreground "Purple"
-	elif bootloader_conf >/dev/null 2>&1; then
-		echo "Writing grub configuration" | msg -2 --foreground "Purple"
-		mkdir -p "$1/boot/grub" 2>/dev/null
-		bootloader_conf 2>/dev/null >> "$1/boot/grub/grub.cfg"
-		bootloader_menu 2>/dev/null >> "$1/boot/grub/grub.cfg"
-	else
-		echo "Bootloader configuration failed to install" | msg -2 --foreground "Brown"
-	fi
-}
-
 mkbootisofs() {
 	DIR=""
 	IMAGE=""
@@ -147,6 +174,15 @@ mkbootisofs() {
 	while test "$1"; do
 		case "$1" in
 			"--output") IMAGE="$2" ; shift ;;
+			"--help")
+				cat <<EOF
+$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+Usage: mkbootisofs <directory> [options]...
+Creates BIOS and UEFI compatible bootable ISO images.
+
+Nothing here.
+EOF
+				;;
 			*)
 				if test "$DIR" = ""; then
 					DIR="$1"
@@ -305,9 +341,77 @@ mkbootisofs() {
 	echo "Done [$DIR]" | msg -2
 }
 
-#
-# RUNTIME LIBRARY
-#
+exportroot() {
+	CODE=""
+	DIR=""
+	while test "$1"; do
+		case "$1" in
+			*)
+				if test "$DIR" = ""; then
+					DIR="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+	if test -d "$DIR"; then
+		echo "Export chroot [$DIR]" | msg -2
+		hi
+		cd "$DIR"
+		find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null
+		CODE="$?"
+		case "$CODE" in
+			"0")
+				echo "Export success" | msg -2 --foreground "Light Green"
+				;;
+			*)
+				echo "Export failed" | msg -2 msg -2 --foreground "Brown"
+				;;
+		esac
+		cd "$OLDPWD"
+		lo
+		echo "Done [$DIR]" | msg -2
+	else
+		echo "No such directory [$DIR] for export" | msg -2 --foreground "Brown"
+	fi
+	return "$CODE"
+}
+
+importroot() {
+	CODE=""
+	DIR=""
+	while test "$1"; do
+		case "$1" in
+			*)
+				if test "$DIR" = ""; then
+					DIR="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+	if test -d "$DIR"; then
+		echo "Import chroot [$DIR]" | msg -2
+		hi
+		cd "$DIR"
+		cpio --extract --make-directories --format "newc" --quiet 1>/dev/null 2>/dev/null
+		CODE="$?"
+		case "$CODE" in
+			"0")
+				echo "Import success" | msg -2 --foreground "Light Green"
+				;;
+			*)
+				echo "Import failed [$CODE]" | msg -2 --foreground "Brown"
+				;;
+		esac
+		cd "$OLDPWD"
+		lo
+		echo "Done [$DIR]" | msg -2
+	else
+		echo "No such directory [$DIR] for import" | msg -2 --foreground "Brown"
+	fi
+	return "$CODE"
+}
 
 lddtree() {
 	if test "$1" = ""; then
@@ -463,7 +567,6 @@ rd_copy_dev() {
 rd_copy_bin() {
 	echo "Copying system files" | msg -2
 	hi
-	SYSTEMWIDE_BINARIES="$(initramfs_systemwide_bin 2>/dev/null)"
 	for bin in $SYSTEMWIDE_BINARIES; do
 		which "$bin" 1>/dev/null 2>/dev/null
 		CODE="$?"
@@ -513,8 +616,7 @@ rd_gen_init() {
 	echo "Creating init" | msg -2
 	hi
 	echo "/init" | msg -2 --foreground "Light Blue"
-	initramfs_init > "$1/init" 2>/dev/null
-	chmod +x "$1/init" 2>/dev/null
+	initramfs_init "$1/init"
 	CODE="$?"
 	case "$CODE" in
 		"0") ;;
@@ -548,71 +650,16 @@ rd_make_dir() {
 	lo
 }
 
-importroot() {
-	DIR=""
-	while test "$1"; do
-		case "$1" in
-			*)
-				if test "$DIR" = ""; then
-					DIR="$1"
-				fi
-				;;
-		esac
-		shift
-	done
-	if test -d "$DIR"; then
-		echo "Import chroot [$DIR]" | msg -2
-		hi
-		cd "$DIR"
-		cpio --extract --make-directories --format "newc" --quiet >/dev/null 2>&1
-		CODE="$?"
-		case "$CODE" in
-			"0")
-				echo "Import success" | msg -2 --foreground "Light Green"
-				;;
-			*)
-				echo "Import failed [$CODE]" | msg -2 --foreground "Brown"
-				;;
-		esac
-		cd "$OLDPWD"
-		lo
-		echo "Done [$DIR]" | msg -2
+iso_bootloader_conf() {
+	if test -f "$1/boot/grub.cfg"; then
+		echo "Keep pre-installed configuration" | msg -2 --foreground "Purple"
+	elif bootloader_conf >/dev/null 2>&1; then
+		echo "Writing grub configuration" | msg -2 --foreground "Purple"
+		mkdir -p "$1/boot/grub" 2>/dev/null
+		bootloader_conf 2>/dev/null >> "$1/boot/grub/grub.cfg"
+		bootloader_menu 2>/dev/null >> "$1/boot/grub/grub.cfg"
 	else
-		echo "No such directory [$DIR] for import" | msg -2 --foreground "Brown"
-	fi
-}
-
-exportroot() {
-	DIR=""
-	while test "$1"; do
-		case "$1" in
-			*)
-				if test "$DIR" = ""; then
-					DIR="$1"
-				fi
-				;;
-		esac
-		shift
-	done
-	if test -d "$DIR"; then
-		echo "Export chroot [$DIR]" | msg -2
-		hi
-		cd "$DIR"
-		find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null
-		CODE="$?"
-		case "$CODE" in
-			"0")
-				echo "Export success" | msg -2 --foreground "Light Green"
-				;;
-			*)
-				echo "Export failed" | msg -2 msg -2 --foreground "Brown"
-				;;
-		esac
-		cd "$OLDPWD"
-		lo
-		echo "Done [$DIR]" | msg -2
-	else
-		echo "No such directory [$DIR] for export" | msg -2 --foreground "Brown"
+		echo "Bootloader configuration failed to install" | msg -2 --foreground "Brown"
 	fi
 }
 
@@ -712,16 +759,22 @@ main() {
 		PROGNAME="$1"
 
 		case "$2" in
+			"--help")
+				cat <<EOF
+$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+EOF
+				;;
 			"") ;;
 			*) shift ;;
 		esac
-
 	fi
 
 	case "$PROGNAME" in
 		"mkbootstrap") mkbootstrap "$@" ;;
 		"mkinitramfs") mkinitramfs "$@" ;;
 		"mkbootisofs") mkbootisofs "$@" ;;
+		"exportroot") exportroot "$@" ;;
+		"importroot") importroot "$@" ;;
 	esac
 }
 
@@ -801,5 +854,8 @@ for BOOBSTRAP_CONF in "/etc/boobstrap/boobstrap.conf" "$HOME/.config/boobstrap/b
 done
 
 preflight_checks || exit 1
+
+readonly BOOBSTRAP_NAME="BOOBSTRAP"
+readonly BOOBSTRAP_VERSION="1.1-rc1"
 
 main "$@"

@@ -23,7 +23,7 @@ crux_gnulinux() {
 		"glibc"			"openssl"		"xz"			\
 		"grep"			"pkgutils"		"zlib"
 
-	mkbootstrap export "$DIR/bootstrap" > "$PWD/crux_gnulinux-embedded.rootfs"
+	exportroot "$DIR/bootstrap" > "$PWD/crux_gnulinux-embedded.rootfs"
 }
 
 main() {

@@ -1,0 +1,132 @@
+#! /usr/bin/env sh
+
+search_media() {
+	echo "Searching media"
+	mkdir -p "/media"
+
+	CDROM_DEVICES=""
+	BLOCK_DEVICES=""
+
+	while read -r x y z partition; do
+		BLOCK_DEVICES="$BLOCK_DEVICES $partiton"
+	done < "/proc/partitions"
+
+	for dev in $CDROM_DEVICES $BLOCK_DEVICES; do
+		echo "In $dev"
+		mount -r "/dev/$dev" "/media" 2>/dev/null
+		if test "$?" = "0"; then
+			if test -d "/media/system"; then
+				echo "Yes"
+				return 0
+			fi
+			umount "/media"
+		fi
+	done
+	echo "Fallback to initramfs"
+}
+
+catch_all_overlays() {
+	echo "Run overlays"
+	lowerdir=""
+	upperdir="/mnt/overlays/rootfs-changes"
+	workdir="/mnt/overlays/tmp"
+	mkdir -p "/mnt"
+	mkdir -p "/mnt/merged"
+	mkdir -p "/mnt/overlays"
+	mount -t tmpfs tmpfs "/mnt/overlays"
+	mkdir -p "$upperdir"
+	mkdir -p "$workdir"
+	for overlay in "/media/system/overlays/"*; do
+		echo "Overlay $overlay"
+		source="$overlay"
+		target="/mnt/overlays/${overlay##*/}"
+		case "$overlay" in
+			*".SQUASHFS")
+				use_driver_squashfs "$source" "$target"
+				CODE="$?"
+				;;
+			*)
+				use_driver_directory "$source" "$target"
+				CODE="$?"
+				;;
+		esac
+		if test "$CODE" = "0"; then
+			lowerdir="$target:$lowerdir"
+		else
+			echo "$overlay ERROR"
+		fi
+	done
+	if test "$lowerdir" = ""; then
+		echo "No working overlays found"
+		return 1
+	fi
+	if test "$USE_DRIVER" = "OVERLAY_FS"; then
+		if mount -t overlay -o lowerdir="${lowerdir%?}",upperdir="$upperdir",workdir="$workdir" Overlay_FS "/mnt/merged"; then
+			mkdir -p "/mnt/merged/mnt/overlays"
+			mount -M "/mnt/overlays" "/mnt/merged/mnt/overlays"
+			echo "Install merged tmpfs as rootfs"
+			return 0
+		else
+			echo "Check for CONFIG_OVERLAY_FS"
+			return 1
+		fi
+	fi
+	return 1
+}
+
+use_driver_squashfs() {
+	source="$1"
+	target="$2"
+	mkdir -p "$target"
+	if mount -t squashfs -o ro "$source" "$target"; then
+		return 0
+	fi
+	return 1
+}
+
+use_driver_directory() {
+	source="$1"
+	target="$2"
+	mkdir -p "$target"
+	if mv "$source/"* "$target"; then
+		return 0
+	fi
+	return 1
+}
+
+main() {
+	echo "Install /proc /sys /dev /run"
+
+	mount -t proc none /proc
+	mount -t sysfs none /sys
+	mount -t devtmpfs none /dev
+	mount -t tmpfs none /run
+
+	search_media
+
+	if test -d "/media/system/overlays"; then
+		if test "$USE_DRIVER" = ""; then
+			USE_DRIVER="OVERLAY_FS"
+		fi
+		if catch_all_overlays; then
+			echo "Overlays OK"
+		fi
+	fi
+
+	echo "Uninstall /proc /sys /dev /run"
+
+	umount /proc
+	umount /sys
+	umount /dev
+	umount /run
+
+	if test -x "/mnt/merged/sbin/init"; then
+		echo "Switch root to merged tmpfs"
+		exec switch_root "/mnt/merged" "/sbin/init"
+	else
+		echo "Where there is a shell, there is a way..."
+		exec sh
+	fi
+}
+
+main "$@"

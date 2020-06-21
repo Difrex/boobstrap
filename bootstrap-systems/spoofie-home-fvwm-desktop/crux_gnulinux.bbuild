@@ -1,7 +1,7 @@
 #! /bin/sh -
 
 crux_gnulinux() {
-	mkbootstrap import "$DIR/bootstrap" < "$PWD/crux_gnulinux-coreonly.rootfs"
+	importroot "$DIR/bootstrap" < "$PWD/crux_gnulinux-coreonly.rootfs"
 
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
