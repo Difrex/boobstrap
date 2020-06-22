@@ -7,7 +7,8 @@ So what BOOBSTRAP can do?
 1. Installs "chroots" into the directory, it have native CRUX GNU/Linux
 support but for other distros BOOBSTRAP just switching to using external
 bootstrap-wrappers like pacstrap, debootstrap, so you need to have it
-installed.
+installed. For CRUX GNU/Linux its a simple pkgadd implementation using "tar"
+and my pkgadd can only installing packages to the "chroot", nothing else.
 
 2. Creates INITRD images for boot using the host-system environment or can
 using standalone directory as INITRD "chroot". INITRD images can including the
