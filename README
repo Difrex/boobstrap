@@ -40,11 +40,12 @@ And now you have "crux_gnulinux-initrd.rootfs.xz" with 32MB size!
 CRUX GNU/Linux as initramfs with OpenSSH included!
 Boot and run "ssh root@host-ip" to login into initramfs! Enjoy!
 
-See bootstrap-templates/ and bootstrap-systems/ for examples how to use it.
+See bootstrap-templates/ and bootstrap-systems/ for more examples.
 
 Aaaaaand...
 
-3. Creating BIOS and UEFI compatible bootable ISO images. Thats it. Simple.
+3. Creating BIOS and UEFI compatible bootable ISO images. Included created INITRD.
+Thats it. Simple.
 
 So...
 
