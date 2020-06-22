@@ -31,15 +31,12 @@ And now you have "crux_gnulinux-embedded.rootfs" with ~160MB++ size.
 # ./boobstrap/bootstrap-templates/crux_gnulinux-initrd/crux_gnulinux-initrd.bbuild
 
 And now you have "crux_gnulinux-initrd.rootfs" with ~160MB++ size.
-
 Its a ready to boot INITRD image, but 160MB...
 
 # xz --check=crc32 --keep --threads=0 --best --verbose crux_gnulinux-initrd.rootfs
 
 And now you have "crux_gnulinux-initrd.rootfs.xz" with 32MB size!
-
-With a CRUX GNU/Linux as initramfs with OpenSSH included!
-
+CRUX GNU/Linux as initramfs with OpenSSH included!
 Boot and run "ssh root@host-ip" to login into initramfs! Enjoy!
 
 See bootstrap-templates/ and bootstrap-systems/ for examples how to use it.
