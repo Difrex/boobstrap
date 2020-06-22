@@ -80,6 +80,10 @@ Software included:
 
 	* mkbootisofs -- Create a bootable ISO from a directory.
 
+	* exportroot -- Creates archive from the "chroot" directory.
+
+	* importroot -- Restores "chroot" directory from the archive.
+
 Software dependencies:
 
 	cpio
