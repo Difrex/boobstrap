@@ -42,7 +42,7 @@ With a CRUX GNU/Linux as initramfs with OpenSSH included!
 
 Boot and run "ssh root@host-ip" to login into initramfs! Enjoy!
 
-See bootstrap-templates/ and bootstrap-systemd/ for examples how to use it.
+See bootstrap-templates/ and bootstrap-systems/ for examples how to use it.
 
 Aaaaaand...
 
