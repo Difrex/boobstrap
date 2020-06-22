@@ -72,7 +72,7 @@ Don't be afraid to do "rm -rf /".
 When my system breaks I push the "RESET" button and the system boots again.
 -- via PXE or from a USB-flash (ISO).
 
-Software Included:
+Software included:
 
 	* mkbootstrap -- Install "chroot" with any distro.
 
@@ -80,7 +80,7 @@ Software Included:
 
 	* mkbootisofs -- Create a bootable ISO from a directory.
 
-Software Dependencies:
+Software dependencies:
 
 	cpio
 	grub
