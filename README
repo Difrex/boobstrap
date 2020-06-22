@@ -2,6 +2,54 @@ GL HF
 
 BOOBSTRAP is a scripts complex for creating bootable GNU/Linux images.
 
+So what BOOBSTRAP can do?
+
+1. Installs "chroots" into the directory, it have native CRUX GNU/Linux
+support but for other distros BOOBSTRAP just switching to using external
+bootstrap-wrappers like pacstrap, debootstrap, so you need to have it
+installed.
+
+2. Creates INITRD images for boot using the host-system environment or can
+using standalone directory as INITRD "chroot". INITRD images can including the
+full(!!!) system as directory, SquashFS-compressed image and so on... Then you
+can share INITRD image via PXE or put it in your "/boot". Also INITRD can
+boots to plain SHMFS (TMPFS, RAMFS) or just using Overlay FS with SquashFS.
+BOOBSTRAP no uses busybox so if you want a full system in initramfs just use
+"--standalone" for creating INITRD from installed "chroot" directory.
+
+For really good INITRD do this step-by-step:
+
+# [ Download official CRUX GNU/Linux ISO ]
+# [ Mount it to ./cruxmedia ]
+
+Then run:
+
+# ./boobstrap/bootstrap-templates/crux_gnulinux-embedded/crux_gnulinux-embedded.bbuild
+
+And now you have "crux_gnulinux-embedded.rootfs" with ~160MB++ size.
+
+# ./boobstrap/bootstrap-templates/crux_gnulinux-initrd/crux_gnulinux-initrd.bbuild
+
+And you have "crux_gnulinux-initrd.rootfs" with ~160MB++ size.
+
+Its a ready to boot INITRD image, but 160MB...
+
+# xz --check=crc32 --keep --threads=0 --best --verbose crux_gnulinux-initrd.rootfs
+
+And you have "crux_gnulinux-initrd.rootfs.xz" with 32MB size!
+
+With a CRUX GNU/Linux as initramfs with OpenSSH included!
+
+Boot and run "ssh root@host-ip" to login into initramfs! Enjoy!
+
+See bootstrap-templates/ and bootstrap-systemd/ for examples how to use it.
+
+Aaaaaand...
+
+3. Creating BIOS and UEFI compatible bootable ISO images. Thats it. Simple.
+
+So...
+
 Just take 3 (three) simple steps and you'll get own bootable GNU/Linux distro!
 And then you will be able to boot it via a network (PXE) or CDROM / USB (bootable ISO).
 
@@ -83,8 +131,6 @@ Where <system> can be:
 !!! Note: I wrote only crux_gnulinux wrapper, for other distros you must have
 pacstrap, basestrap, debootstrap, and other *straps installed.
 
-<system> also can be "import" or "export" without reinstalling "chroots".
-
 crux_gnulinux options:
 
 	--ports-dir <directory> -- specify directory for search CRUX packages.
@@ -127,15 +173,15 @@ Filenames are allowed:
 If you choose another distro like debian_gnulinux, you must use "debootstrap"
 options. mkbootstrap just switches to use the "debootstrap", nothing else.
 
-For saving and loading features you can use "export" and "import" commands.
+For saving and loading features you can run "exportroot" and "importroot".
 
 You have installed a "chroot" and you want to save the state for future use, run:
 
-	# mkbootstrap export "chroot/" > "vanilla-chroot.rootfs"
+	# exportroot "chroot/" > "vanilla-chroot.rootfs"
 
 And then, when you want to setup another system from this "chroot/", run:
 
-	# mkbootstrap import "just-another-chroot/" < "vanilla-chroot.rootfs"
+	# importroot "just-another-chroot/" < "vanilla-chroot.rootfs"
 
 It's usable when you only have one system state and many configurations.
 
