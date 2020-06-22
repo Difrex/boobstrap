@@ -44,7 +44,7 @@ See bootstrap-templates/ and bootstrap-systems/ for more examples.
 
 Aaaaaand...
 
-3. Creating BIOS and UEFI compatible bootable ISO images. Included created INITRD.
+3. Creating BIOS and UEFI compatible bootable ISO images. Including created INITRD.
 Thats it. Simple.
 
 So...
