@@ -4,11 +4,12 @@ search_media() {
 	echo "Searching media"
 	mkdir -p "/media"
 
+	# ANYBODY STILL USING CD-ROM?
 	CDROM_DEVICES=""
 	BLOCK_DEVICES=""
 
 	while read -r x y z partition; do
-		BLOCK_DEVICES="$BLOCK_DEVICES $partiton"
+		BLOCK_DEVICES="$BLOCK_DEVICES $partition"
 	done < "/proc/partitions"
 
 	for dev in $CDROM_DEVICES $BLOCK_DEVICES; do
@@ -41,8 +42,20 @@ catch_all_overlays() {
 		source="$overlay"
 		target="/mnt/overlays/${overlay##*/}"
 		case "$overlay" in
-			*".SQUASHFS")
+			*".cpio")
+				use_driver_cpio "$source" "$target"
+				CODE="$?"
+				;;
+			*".squashfs")
 				use_driver_squashfs "$source" "$target"
+				CODE="$?"
+				;;
+			*".raw.ext4")
+				use_driver_ext4 "$source" "$target"
+				CODE="$?"
+				;;
+			*".raw.btrfs")
+				use_driver_btrfs "$source" "$target"
 				CODE="$?"
 				;;
 			*)
@@ -63,7 +76,7 @@ catch_all_overlays() {
 	if test "$USE_DRIVER" = "OVERLAY_FS"; then
 		if mount -t overlay -o lowerdir="${lowerdir%?}",upperdir="$upperdir",workdir="$workdir" Overlay_FS "/mnt/merged"; then
 			mkdir -p "/mnt/merged/mnt/overlays"
-			mount -M "/mnt/overlays" "/mnt/merged/mnt/overlays"
+			mount -o bind,ro "/mnt/overlays" "/mnt/merged/mnt/overlays"
 			echo "Install merged tmpfs as rootfs"
 			return 0
 		else
@@ -71,6 +84,30 @@ catch_all_overlays() {
 			return 1
 		fi
 	fi
+	return 1
+}
+
+use_driver_directory() {
+	source="$1"
+	target="$2"
+	mkdir -p "$target"
+	if test -d "$source"; then
+		if cp -a "$source/"* "$target" 2>/dev/null; then
+			return 0
+		fi
+	fi
+	return 1
+}
+
+use_driver_cpio() {
+	source="$1"
+	target="$2"
+	mkdir -p "$target"
+	cd "$target"
+	if cpio -i -d -H "newc" < "$source" 1>/dev/null 2>/dev/null; then
+		return 0
+	fi
+	cd "$OLDPWD"
 	return 1
 }
 
@@ -84,11 +121,21 @@ use_driver_squashfs() {
 	return 1
 }
 
-use_driver_directory() {
+use_driver_ext4() {
 	source="$1"
 	target="$2"
 	mkdir -p "$target"
-	if mv "$source/"* "$target"; then
+	if mount -t ext4 -o ro "$source" "$target"; then
+		return 0
+	fi
+	return 1
+}
+
+use_driver_btrfs() {
+	source="$1"
+	target="$2"
+	mkdir -p "$target"
+	if mount -t btrfs -o ro "$source" "$target"; then
 		return 0
 	fi
 	return 1
@@ -97,12 +144,20 @@ use_driver_directory() {
 main() {
 	echo "Install /proc /sys /dev /run"
 
+	if test -x "/usr/bin/busybox"; then
+		/usr/bin/busybox --install "/usr/bin"
+	fi
+
 	mount -t proc none /proc
 	mount -t sysfs none /sys
 	mount -t devtmpfs none /dev
 	mount -t tmpfs none /run
 
-	search_media
+	if test -x "/usr/bin/mdev"; then
+		mdev -s
+
+		search_media
+	fi
 
 	if test -d "/media/system/overlays"; then
 		if test "$USE_DRIVER" = ""; then

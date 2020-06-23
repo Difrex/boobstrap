@@ -13,6 +13,7 @@ mkbootstrap() {
 		"archlinux_gnulinux"|"arch_gnulinux") pacstrap "$@" ;;
 		"manjaro_gnulinux") basestrap "$@" ;;
 		"debian_gnulinux") debootstrap "$@" ;;
+		"fedora_gnulinux"|"redhat_gnulinux"|"centos_gnulinux") dnf "$@" ;;
 		"--help")
 			cat <<EOF
 $BOOBSTRAP_NAME $BOOBSTRAP_VERSION
@@ -23,12 +24,15 @@ Installs selected system into the directory.
                                crux_gnulinux
 
                              other supported OS:
-                                 archlinux_gnulinux *
-                                 manjaro_gnulinux *
-                                 debian_gnulinux *
+                               fedora_gnulinux *
+                               redhat_gnulinux *
+                               centos_gnulinux *
+                               debian_gnulinux *
+                               archlinux_gnulinux *
+                               manjaro_gnulinux *
 
-                             requires external wrappers i.e.:
-                             pacstrap, debootstrap and so on
+                             * requires external wrappers i.e.:
+                               pacstrap, debootstrap and so on
 
   crux_gnulinux options:
 
@@ -36,29 +40,104 @@ Installs selected system into the directory.
 
   [packages]                 packages to install.
                                can be package name or filename
-                               if empty so then full selected
+                               if empty then selected
                                --ports-dir will be installed
 EOF
+exit 0
 ;;
 	esac
 }
 
-mkinitramfs() {
-	CHROOT=""
+mkoverlayfs() {
+	OVERLAY=""
 	IMAGE=""
-	IS_STANDALONE=""
-	IS_OVERLAY=""
-	OVERLAYS=""
-	COMMAND=""
+	FORMAT=""
 
 	while test "$1"; do
 		case "$1" in
 			"--output") IMAGE="$(realpath $2)" ; shift ;;
+			"--format") FORMAT="$2" ; shift ;;
+			"--squashfs") FORMAT="squashfs" ;;
+			"--squashfs-xz") FORMAT="squashfs xz" ;;
+			"--help"|"-h")
+				cat <<EOF
+$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+Usage: mkoverlayfs <directory> [options]...
+Creates filesystem from the directory by using selected format.
+
+  --output <file>            specify output file
+
+  --format                   select filesystem format, can be one of:
+			       directory
+                               cpio
+                               squashfs
+                               squashfs xz
+
+  --squashfs,                aliases for the --format
+  --squashfs-xz
+EOF
+exit 0
+				;;
+			*)
+				if test "$OVERLAY" = ""; then
+					OVERLAY="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+
+	if test "$IMAGE" = ""; then
+		echo "No image output specified" | msg -2 --foreground "Brown"
+		return 1
+	fi
+
+	if test "$FORMAT" = ""; then
+		echo "No format output specified, fallback to using directory" | msg -2 --foreground "Brown"
+	fi
+
+	case "$FORMAT" in
+		"directory")
+			ofs_mk_directory "$OVERLAY" "$IMAGE"
+			CODE="$?"
+			;;
+		"cpio")
+			ofs_mk_cpio "$OVERLAY" "$IMAGE.cpio"
+			CODE="$?"
+			;;
+		"squashfs")
+			ofs_mk_squashfs "$OVERLAY" "$IMAGE.squashfs"
+			CODE="$?"
+			;;
+		"squashfs xz")
+			ofs_mk_squashfs_xz "$OVERLAY" "$IMAGE.squashfs"
+			CODE="$?"
+			;;
+		*)
+			CODE="1"
+			echo "Unknown filesystem format" | msg -2 --foreground "Brown"
+			;;
+	esac
+
+	return "$CODE"
+}
+
+mkinitramfs() {
+	DIR=""
+	OUTPUT=""
+	IS_STANDALONE=""
+	IS_OVERLAY=""
+	OVERLAYS=""
+	FORMAT=""
+
+	while test "$1"; do
+		case "$1" in
+			"--output") OUTPUT="$(realpath $2)" ; shift ;;
 			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
-			"--command") COMMAND="$2" ; shift ;;
-			"--squashfs") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SQUASHFS -quiet" ;;
-			"--squashfs-xz") COMMAND="mksquashfs \${SOURCE} \${DESTINATION}.SQUASHFS -quiet -b $((1024 * 1024)) -comp xz -Xdict-size 100%" ;;
+			"--format") FORMAT="$2" ; shift ;;
+			"--squashfs") FORMAT="squashfs" ;;
+			"--squashfs-xz") FORMAT="squashfs xz" ;;
 			"--help"|"-h")
 				cat <<EOF
 $BOOBSTRAP_NAME $BOOBSTRAP_VERSION
@@ -72,116 +151,10 @@ Creates bootable ram disk image from the directory.
 
   --overlay                  add overlay
 
-  --command                  set command
-
   --squashfs,                pre-defined command mksquashfs
-  --squashfs-xz		     pre-defined command mksquashfs
+  --squashfs-xz              pre-defined command mksquashfs
 EOF
-				;;
-			*)
-				if test "$CHROOT" = ""; then
-					CHROOT="$1"
-				fi
-				;;
-		esac
-		shift
-	done
-
-	echo "Generating initramfs [$CHROOT]" | msg -2
-	hi
-
-	if test "$CHROOT" = ""; then
-		CHROOT="."
-	fi
-
-	if test "$IS_STANDALONE" = "yes"; then
-		IS_OVERLAY="no"
-	fi
-
-	if test "$IS_OVERLAY" = "yes"; then
-
-		rd_make_dir "$CHROOT"
-
-		rd_copy_dev "$CHROOT"
-
-		rd_copy_bin "$CHROOT"
-
-		rd_gen_init "$CHROOT"
-
-		if test "$COMMAND" = ""; then
-			COMMAND="cp -a \${SOURCE} \${DESTINATION} 2>/dev/null"
-		fi
-
-		NUM=0
-
-		echo "Prepare overlays" | msg -2
-		mkdir -p "$CHROOT/media/system/overlays"
-		hi
-		for overlay in $OVERLAYS; do
-			NUM="$(($NUM + 10))"
-			SOURCE="$overlay"
-			DESTINATION="$CHROOT/media/system/overlays/$NUM-$(basename $overlay)"
-			echo "$COMMAND" | msg -2 --foreground "Light Blue"
-			eval "$COMMAND" 1>&2
-			CODE="$?"
-			hi
-			case "$CODE" in
-				"0")
-					echo "Success" | msg -2 --foreground "Light Green"
-					;;
-				*)
-					echo "Failure [$CODE]" | msg -2 --foreground "Brown"
-					hi
-					echo "$COMMAND" | msg -2 --foreground "Light Red" --highlight
-					lo
-					;;
-			esac
-			lo
-		done
-		lo
-		echo "Overlays done" | msg -2
-	fi
-
-	echo "Creating initramfs [$IMAGE]" | msg -2
-
-	cd "$CHROOT" 2>/dev/null
-	case "$IMAGE" in
-		""|"-") find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null ; CODE="$?" ;;
-		*) find . -print0 | cpio --create --format "newc" --null --quiet > "$IMAGE" 2>/dev/null ; CODE="$?" ;;
-	esac
-	hi
-	case "$CODE" in
-		"0")
-			echo "Success" | msg -2 --foreground "Light Green"
-			;;
-		*)
-			echo "Error while generating initramfs" | msg -2 --foreground "Brown" --highlight
-			;;
-	esac
-	lo
-	cd "$OLDPWD" 2>/dev/null
-
-	echo "Done [$IMAGE]" | msg -2
-
-	lo
-	echo "Done [$CHROOT]" | msg -2
-}
-
-mkbootisofs() {
-	DIR=""
-	IMAGE=""
-
-	while test "$1"; do
-		case "$1" in
-			"--output") IMAGE="$2" ; shift ;;
-			"--help")
-				cat <<EOF
-$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
-Usage: mkbootisofs <directory> [options]...
-Creates BIOS and UEFI compatible bootable ISO images.
-
-Nothing here.
-EOF
+exit 0
 				;;
 			*)
 				if test "$DIR" = ""; then
@@ -191,13 +164,144 @@ EOF
 		esac
 		shift
 	done
-
-	if test "$DIR" = ""; then
-		DIR="."
+	if test "$OUTPUT" = ""; then
+		OUTPUT="-"
 	fi
+	if test "$DIR" = ""; then
+		echo "Directory not selected" | msg -2 --foreground "Brown"
+		return 1
+	fi
+	if test "$FORMAT" = ""; then
+		FORMAT="directory"
+	fi
+	echo "Generating initramfs [$DIR]" | msg -2
+	hi
+	if test "$IS_STANDALONE" = ""; then
+		rd_make_dir "$DIR"
+		rd_copy_dev "$DIR"
+		rd_copy_bin "$DIR"
+		rd_gen_init "$DIR"
+	fi
+	if test "$IS_STANDALONE" = "yes"; then
+		if test -f "$DIR/init"; then
+			echo "Found /init" | msg -2
+		else
+			echo "Empty /init is now wrapper for /sbin/init" | msg -2
+			echo "#! /sbin/init" > "$DIR/init"
+			chmod +x "$DIR/init"
+		fi
+	fi
+	if test "$IS_OVERLAY" = "yes"; then
+		NUM=0
+		echo "Prepare overlays" | msg -2
+		mkdir -p "$DIR/media/system/overlays" 2>/dev/null
+		hi
+		for overlay in $OVERLAYS; do
+			NUM="$(($NUM + 10))"
+			SOURCE="$overlay"
+			TARGET="$DIR/media/system/overlays/$NUM-$(basename $overlay)"
+			mkoverlayfs "$SOURCE" \
+				--output "$TARGET" \
+				--format "$FORMAT"
+			CODE="$?"
+			hi
+			case "$CODE" in
+				"0") echo "Success" | msg -2 --foreground "Light Green" ;;
+				*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
+			esac
+			lo
+		done
+		lo
+		echo "Overlays done" | msg -2
+	fi
+	echo "Creating initramfs [$OUTPUT]" | msg -2
+	cd "$DIR" 2>/dev/null
+	case "$OUTPUT" in
+		""|"-")
+			find . -print0 | cpio --create --format "newc" --null --quiet 2>/dev/null
+			CODE="$?"
+			;;
+		*)
+			find . -print0 | cpio --create --format "newc" --null --quiet > "$OUTPUT" 2>/dev/null
+			CODE="$?"
+			;;
+	esac
+	hi
+	case "$CODE" in
+		"0") echo "Success" | msg -2 --foreground "Light Green" ;;
+		*) echo "Error while generating initramfs" | msg -2 --foreground "Brown" --highlight ;;
+	esac
+	lo
+	cd "$OLDPWD" 2>/dev/null
+	echo "Done [$OUTPUT]" | msg -2
+	lo
+	echo "Done [$DIR]" | msg -2
+}
 
+mkbootisofs() {
+	DIR=""
+	OUTPUT=""
+	IS_OVERLAY=""
+	OVERLAYS=""
+	FORMAT=""
+
+	while test "$1"; do
+		case "$1" in
+			"--output") OUTPUT="$(realpath $2)" ; shift ;;
+			"--standalone") IS_STANDALONE="yes" ;;
+			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
+			"--format") FORMAT="$2" ; shift ;;
+			"--squashfs") FORMAT="squashfs" ;;
+			"--squashfs-xz") FORMAT="squashfs xz" ;;
+			"--help")
+				cat <<EOF
+$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+Usage: mkbootisofs <directory> [options]...
+Creates BIOS and UEFI compatible bootable ISO images.
+
+Nothing here.
+EOF
+exit 0
+				;;
+			*)
+				if test "$DIR" = ""; then
+					DIR="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+	if test "$OUTPUT" = ""; then
+		OUTPUT="-"
+	fi
+	if test "$FORMAT" = ""; then
+		FORMAT="cpio"
+	fi
 	echo "Creating ISO [$DIR]" | msg -2
 	hi
+	if test "$IS_OVERLAY" = "yes"; then
+		NUM=0
+		echo "Prepare overlays" | msg -2
+		mkdir -p "$DIR/system/overlays"
+		hi
+		for overlay in $OVERLAYS; do
+			NUM="$(($NUM + 10))"
+			SOURCE="$overlay"
+			TARGET="$DIR/system/overlays/$NUM-$(basename $overlay)"
+			mkoverlayfs "$SOURCE" \
+				--output "$TARGET" \
+				--format "$FORMAT"
+			CODE="$?"
+			hi
+			case "$CODE" in
+				"0") echo "Success" | msg -2 --foreground "Light Green" ;;
+				*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
+			esac
+			lo
+		done
+		lo
+		echo "Overlays done" | msg -2
+	fi
 
 	iso_bootloader_conf "$DIR"
 
@@ -265,7 +369,7 @@ EOF
 
 	echo "Formatting empty partition to FAT32" | msg -2 --foreground "Purple"
 	hi
-	mkdosfs "$DIR/boot/grub/uefi.img" 2>/dev/null
+	mkdosfs "$DIR/boot/grub/uefi.img" 1>/dev/null 2>/dev/null
 	case "$?" in
 		"0") ;;
 		*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
@@ -309,7 +413,7 @@ EOF
 	lo
 	lo
 
-	echo "Writing BIOS/UEFI bootable ISO image [$IMAGE]" | msg -2 --foreground "Purple"
+	echo "Writing BIOS/UEFI bootable ISO image [$OUTPUT]" | msg -2 --foreground "Purple"
 	hi
 
 	xorriso -as "mkisofs" \
@@ -328,8 +432,8 @@ EOF
 		-append_partition 2 "0xEF" "$DIR/boot/grub/uefi.img" \
 		-graft-points \
 		-quiet \
-		-output - \
-		"$DIR" 2>"/dev/null"
+		-output "$OUTPUT" \
+		"$DIR" 2>/dev/null
 
 	case "$?" in
 		"0") ;;
@@ -663,6 +767,48 @@ iso_bootloader_conf() {
 	fi
 }
 
+ofs_mk_directory() {
+	SOURCE="$1"
+	TARGET="$2"
+
+	echo "Copy $SOURCE to $TARGET" | msg -2 --foreground "Light Blue"
+	cp -a "$SOURCE" "$TARGET" 1>/dev/null 2>/dev/null
+
+	return $?
+}
+
+ofs_mk_cpio() {
+	SOURCE="$1"
+	TARGET="$2"
+
+	echo "Creating archive from $SOURCE to $TARGET" | msg -2 --foreground "Light Blue"
+	cd "$SOURCE"
+	find . -print0 | cpio --create --format "newc" --null --quiet >"$TARGET" 2>/dev/null
+	cd "$OLDPWD"
+
+	return $?
+}
+
+ofs_mk_squashfs() {
+	SOURCE="$1"
+	TARGET="$2"
+
+	echo "Making SquashFS from $SOURCE to $TARGET" | msg -2 --foreground "Light Blue"
+	mksquashfs "$SOURCE" "$TARGET" -quiet 1>/dev/null
+
+	return $?
+}
+
+ofs_mk_squashfs_xz() {
+	SOURCE="$1"
+	TARGET="$2"
+
+	echo "Making SquashFS from $SOURCE to $TARGET" | msg -2 --foreground "Light Blue"
+	mksquashfs "$SOURCE" "$TARGET" -quiet -b "$((1024 * 1024))" -comp "xz" -Xdict-size "100%" 1>/dev/null
+
+	return $?
+}
+
 cruxstrap() {
 	CHROOT=""
 	PORTS=""
@@ -763,6 +909,7 @@ main() {
 				cat <<EOF
 $BOOBSTRAP_NAME $BOOBSTRAP_VERSION
 EOF
+exit 0
 				;;
 			"") ;;
 			*) shift ;;
@@ -775,6 +922,7 @@ EOF
 		"mkbootisofs") mkbootisofs "$@" ;;
 		"exportroot") exportroot "$@" ;;
 		"importroot") importroot "$@" ;;
+		"mkoverlayfs") mkoverlayfs "$@" ;;
 	esac
 }
 
@@ -856,6 +1004,6 @@ done
 preflight_checks || exit 1
 
 readonly BOOBSTRAP_NAME="BOOBSTRAP"
-readonly BOOBSTRAP_VERSION="1.1-rc1"
+readonly BOOBSTRAP_VERSION="1.1-rc2"
 
 main "$@"

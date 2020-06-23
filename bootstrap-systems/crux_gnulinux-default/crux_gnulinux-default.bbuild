@@ -11,14 +11,16 @@ crux_gnulinux() {
 
 	mkinitramfs "$DIR/initramfs"							\
 											\
-		--overlay "$DIR/bootstrap"						\
-											\
 		--output "$DIR/initramfs.img"
 
 	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
 	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
 
-	mkbootisofs "$DIR/bootimage" > "$DIR/install.iso"
+	mkbootisofs "$DIR/bootimage"							\
+											\
+		--overlay "$DIR/bootstrap"						\
+											\
+		--output "$DIR/install.iso"
 }
 
 main() {
