@@ -15,16 +15,22 @@ crux_gnulinux() {
 
 	mkinitramfs "$DIR/initramfs"							\
 											\
+		--output "$DIR/initramfs.img"
+
+	xz --check="crc32" --keep --threads=0 --best "$DIR/initramfs.img"
+
+	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
+	install -D "$DIR/initramfs.img.xz" "$DIR/bootimage/boot/initrd"
+
+	mkbootisofs "$DIR/bootimage"							\
+											\
 		--overlay "$DIR/bootstrap"						\
 											\
 		--overlay "$(dirname $0)/rootfs-changes"				\
 											\
-		--output "$DIR/initramfs.img"
-
-	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
-	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
-
-	mkbootisofs "$DIR/bootimage" > "$DIR/install.iso"
+		--format "squashfs xz"							\
+											\
+		--output "$DIR/install.iso"
 }
 
 main() {

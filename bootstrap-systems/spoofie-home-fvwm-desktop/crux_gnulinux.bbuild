@@ -1,7 +1,7 @@
 #! /usr/bin/env sh
 
 crux_gnulinux() {
-	importroot "$DIR/bootstrap" < "$PWD/crux_gnulinux-coreonly.rootfs"
+	importroot "$DIR/bootstrap" < "$PWD/crux_gnulinux-core.rootfs"
 
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
@@ -83,18 +83,29 @@ crux_gnulinux() {
 											\
 		--ports-dir "$PWD/cruxports"
 
+	mkoverlayfs "$DIR/bootstrap"							\
+											\
+		--format "squashfs xz"							\
+											\
+		--output "$DIR/bootstrap"
+
+	mkoverlayfs "$(dirname $0)/rootfs-changes"					\
+											\
+		--format "cpio"								\
+											\
+		--output "$DIR/rootfs-changes"
+
 	mkinitramfs "$DIR/initramfs"							\
-											\
-		--overlay "$DIR/bootstrap"						\
-											\
-		--overlay "$(dirname $0)/rootfs-changes"				\
-											\
-		--squashfs-xz								\
 											\
 		--output "$DIR/initramfs.img"
 
+	xz --check="crc32" --keep --threads=0 --best "$DIR/initramfs.img"
+
 	install -D "$DIR/bootstrap/lib/modules/"*"/vmlinuz" "$DIR/bootimage/boot/vmlinuz"
-	install -D "$DIR/initramfs.img" "$DIR/bootimage/boot/initrd"
+	install -D "$DIR/initramfs.img.xz" "$DIR/bootimage/boot/initrd"
+
+	install -D "$DIR/bootstrap.squashfs" "$DIR/bootimage/system/bootstrap.squashfs"
+	install -D "$DIR/rootfs-changes.cpio" "$DIR/bootimage/system/rootfs-changes.cpio"
 
 	mkbootisofs "$DIR/bootimage" > "$DIR/install.iso"
 }

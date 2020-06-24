@@ -16,14 +16,16 @@ search_media() {
 		echo "In $dev"
 		mount -r "/dev/$dev" "/media" 2>/dev/null
 		if test "$?" = "0"; then
-			if test -d "/media/system"; then
+			if test -d "/media$@"; then
 				echo "Yes"
 				return 0
 			fi
 			umount "/media"
 		fi
 	done
+
 	echo "Fallback to initramfs"
+	return 1
 }
 
 catch_all_overlays() {
@@ -37,7 +39,7 @@ catch_all_overlays() {
 	mount -t tmpfs tmpfs "/mnt/overlays"
 	mkdir -p "$upperdir"
 	mkdir -p "$workdir"
-	for overlay in "/media/system/overlays/"*; do
+	for overlay in "$@/overlays/"*; do
 		echo "Overlay $overlay"
 		source="$overlay"
 		target="/mnt/overlays/${overlay##*/}"
@@ -50,12 +52,8 @@ catch_all_overlays() {
 				use_driver_squashfs "$source" "$target"
 				CODE="$?"
 				;;
-			*".raw.ext4")
-				use_driver_ext4 "$source" "$target"
-				CODE="$?"
-				;;
-			*".raw.btrfs")
-				use_driver_btrfs "$source" "$target"
+			*".raw.ext")
+				use_driver_ext "$source" "$target"
 				CODE="$?"
 				;;
 			*)
@@ -121,24 +119,25 @@ use_driver_squashfs() {
 	return 1
 }
 
-use_driver_ext4() {
+use_driver_ext() {
 	source="$1"
 	target="$2"
 	mkdir -p "$target"
-	if mount -t ext4 -o ro "$source" "$target"; then
+	if mount -o ro "$source" "$target"; then
 		return 0
 	fi
 	return 1
 }
 
-use_driver_btrfs() {
-	source="$1"
-	target="$2"
-	mkdir -p "$target"
-	if mount -t btrfs -o ro "$source" "$target"; then
-		return 0
-	fi
-	return 1
+cheat_sheet() {
+	while "$1"; do
+		case "$1" in
+			"boobs.boot-from-ram") BOOT_FROM_RAM="yes" ;;
+			"boobs.use-overlayfs") USE_DRIVER="OVERLAY_FS" ;;
+			"boobs.use-shmfs") USE_DRIVER="SHMFS" ;;
+		esac
+		shift
+	done
 }
 
 main() {
@@ -149,23 +148,50 @@ main() {
 	fi
 
 	mount -t proc none /proc
+	echo "0" >/proc/sys/kernel/printk
 	mount -t sysfs none /sys
 	mount -t devtmpfs none /dev
 	mount -t tmpfs none /run
 
+	while read -r input; do
+		cheat_sheet "$input"
+	done < /proc/cmdline
+
+	if test "$SEARCH_ROOTFS" = ""; then
+		SEARCH_ROOTFS="/system"
+	fi
+
+	if test "$SWITCH_ROOTFS" = ""; then
+		SWITCH_ROOTFS="/mnt/merged"
+	fi
+
+	if test "$BOOT_FROM_RAM" = ""; then
+		BOOT_FROM_RAM="no"
+	fi
+
+	if test "$USE_DRIVER" = ""; then
+		USE_DRIVER="OVERLAY_FS"
+	fi
+
 	if test -x "/usr/bin/mdev"; then
 		mdev -s
 
-		search_media
+		if search_media "$SEARCH_ROOTFS"; then
+			SEARCH_ROOTFS="/media$SEARCH_ROOTFS"
+
+			if test "$BOOT_FROM_RAM" = "yes"; then
+				SEARCH_ROOTFS="/mnt/toram/system"
+				echo "Start copying system to the RAM drive"
+				mkdir -p "/mnt/toram"
+				mount -t tmpfs -o "size=100%" toram "/mnt/toram"
+				cp -r -v "/media/system" "/mnt/toram"
+				echo "Device can be successfully unplugged now"
+			fi
+		fi
 	fi
 
-	if test -d "/media/system/overlays"; then
-		if test "$USE_DRIVER" = ""; then
-			USE_DRIVER="OVERLAY_FS"
-		fi
-		if catch_all_overlays; then
-			echo "Overlays OK"
-		fi
+	if catch_all_overlays "$SEARCH_ROOTFS"; then
+		echo "Overlays OK"
 	fi
 
 	echo "Uninstall /proc /sys /dev /run"
@@ -175,9 +201,9 @@ main() {
 	umount /dev
 	umount /run
 
-	if test -x "/mnt/merged/sbin/init"; then
+	if test -x "$SWITCH_ROOTFS/sbin/init"; then
 		echo "Switch root to merged tmpfs"
-		exec switch_root "/mnt/merged" "/sbin/init"
+		exec switch_root "$SWITCH_ROOTFS" "/sbin/init"
 	else
 		echo "Where there is a shell, there is a way..."
 		exec sh
