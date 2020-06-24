@@ -881,7 +881,7 @@ exit 0
 }
 
 preflight_checks() {
-	for dep in "cpio" "mkdosfs" "xorriso"; do
+	for dep in "cpio" "mkdosfs"; do
 		which "$dep" 1>/dev/null 2>/dev/null
 		case "$?" in
 			"0") ;;
