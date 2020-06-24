@@ -951,7 +951,7 @@ for BOOBSTRAP_CONF in "/etc/boobstrap/boobstrap.conf" "$HOME/.config/boobstrap/b
 	fi
 done
 
-# preflight_checks || exit 1
+preflight_checks || exit 1
 
 readonly BOOBSTRAP_NAME="BOOBSTRAP"
 readonly BOOBSTRAP_VERSION="1.1"
