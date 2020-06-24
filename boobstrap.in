@@ -14,7 +14,7 @@ mkbootstrap() {
 		"manjaro_gnulinux") basestrap "$@" ;;
 		"debian_gnulinux") debootstrap "$@" ;;
 		"fedora_gnulinux"|"redhat_gnulinux"|"centos_gnulinux") dnf "$@" ;;
-		"--help")
+		"--help"|"-h"|"-?")
 			cat <<EOF
 $BOOBSTRAP_NAME $BOOBSTRAP_VERSION
 Usage: mkbootstrap <system> <directory> [options]... [packages]...
@@ -881,7 +881,7 @@ exit 0
 }
 
 preflight_checks() {
-	for dep in "cpio" "grub-mkstandalone" "mkdosfs" "xorriso"; do
+	for dep in "cpio" "mkdosfs" "xorriso"; do
 		which "$dep" 1>/dev/null 2>/dev/null
 		case "$?" in
 			"0") ;;
