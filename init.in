@@ -113,7 +113,7 @@ use_driver_squashfs() {
 	source="$1"
 	target="$2"
 	mkdir -p "$target"
-	if mount -t squashfs -o ro "$source" "$target"; then
+	if mount "$source" "$target"; then
 		return 0
 	fi
 	return 1
