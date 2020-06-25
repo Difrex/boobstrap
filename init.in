@@ -216,7 +216,7 @@ main() {
 	fi
 
 	if test "$USE_FILESYSTEM" = ""; then
-		USE_FILESYSTEM="OVERLAY_FS"
+		USE_FILESYSTEM="SHMFS"
 	fi
 
 	if test -x "$(which mdev)"; then
