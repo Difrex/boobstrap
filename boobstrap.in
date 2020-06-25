@@ -110,11 +110,11 @@ exit 0
 			CODE="$?"
 			;;
 		"squashfs")
-			ofs_mk_squashfs "$OVERLAY" "$IMAGE.sqfs"
+			ofs_mk_squashfs "$OVERLAY" "$IMAGE.squashfs"
 			CODE="$?"
 			;;
 		"squashfs xz")
-			ofs_mk_squashfs_xz "$OVERLAY" "$IMAGE.sqfs"
+			ofs_mk_squashfs_xz "$OVERLAY" "$IMAGE.squashfs"
 			CODE="$?"
 			;;
 		*)
