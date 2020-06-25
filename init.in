@@ -195,9 +195,9 @@ main() {
 		fi
 	done
 
-	mount -t proc none /proc
+	mount -t proc proc /proc
 	echo "0" >/proc/sys/kernel/printk
-	mount -t sysfs none /sys
+	mount -t sysfs sysfs /sys
 	mount -t devtmpfs none /dev
 	mount -t tmpfs none /run
 
@@ -223,8 +223,12 @@ main() {
 		USE_FILESYSTEM="SHMFS"
 	fi
 
-	if test -x "$(which mdev)"; then
+	if test -x "/sbin/mdev"; then
 		mdev -s
+
+		if test -f "/proc/sys/kernel/hotplug"; then
+			echo "/sbin/mdev" > /proc/sys/kernel/hotplug
+		fi
 
 		if search_media "$SEARCH_ROOTFS"; then
 			if test "$COPY_TO_RAM" = "yes"; then
