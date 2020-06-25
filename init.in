@@ -13,18 +13,20 @@ search_media() {
 	done < "/proc/partitions"
 
 	for dev in $CDROM_DEVICES $BLOCK_DEVICES; do
-		echo "In $dev"
-		mount -r "/dev/$dev" "/media" 2>/dev/null
-		if test "$?" = "0"; then
-			if test -d "$@"; then
-				echo "Searching media done"
-				return 0
+		if test -b "/dev/$dev"; then
+			echo "In $dev"
+			mount -r "/dev/$dev" "/media" 2>/dev/null
+			if test "$?" = "0"; then
+				if test -d "$@"; then
+					echo "Searching media done"
+					return 0
+				fi
+				if test -f "$@"; then
+					echo "Searching media done"
+					return 0
+				fi
+				umount "/media"
 			fi
-			if test -f "$@"; then
-				echo "Searching media done"
-				return 0
-			fi
-			umount "/media"
 		fi
 	done
 
@@ -35,6 +37,26 @@ search_media() {
 filesystem() {
 	if test "$USE_FILESYSTEM" = "SHMFS"; then
 		FILESYSTEM_MOUNT="/mnt/shm"
+		mkdir -p "$FILESYSTEM_MOUNT"
+
+		echo "Searching filesystem"
+		for fs in $@; do
+			if test -f "$fs"; then
+				if try_filesystem "$fs" on "$FILESYSTEM_MOUNT"; then
+					cp -r -f "$(catch_filesystem $f in $FILESYSTEM_MOUNT)/"* "$SWITCH_ROOTFS"
+				fi
+			fi
+			if test -d "$fs"; then
+				for f in "$fs/"*; do
+					if try_filesystem "$f" on "$FILESYSTEM_MOUNT"; then
+						cp -r -f "$(catch_filesystem $f in $FILESYSTEM_MOUNT)/"* "$SWITCH_ROOTFS"
+					fi
+				done
+			fi
+		done
+		echo "Searching filesystem done"
+
+		return 0
 	fi
 	if test "$USE_FILESYSTEM" = "OVERLAY_FS"; then
 		FILESYSTEM_MOUNT="/mnt/overlay"
