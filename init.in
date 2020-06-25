@@ -223,11 +223,11 @@ main() {
 		USE_FILESYSTEM="SHMFS"
 	fi
 
-	if test -x "/sbin/mdev"; then
+	if test -x "$(which mdev)"; then
 		mdev -s
 
 		if test -f "/proc/sys/kernel/hotplug"; then
-			echo "/sbin/mdev" > /proc/sys/kernel/hotplug
+			echo "$(which mdev)" > /proc/sys/kernel/hotplug
 		fi
 
 		if search_media "$SEARCH_ROOTFS"; then
