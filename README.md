@@ -10,6 +10,7 @@ Boobstrap is a scripts complex for creating bootable GNU/Linux images.
 - [Boobstrap](#boobstrap)
     - [Installation](#installation)
     - [Quick start](#quick-start)
+    - [Boot options](#boot-options)
     - [Utilities](#utilities)
         - [mkbootstrap](#mkbootstrap)
         - [mkinitramfs](#mkinitramfs)
@@ -127,6 +128,45 @@ Quick Start (just run a test):
 # boobstrap/tests/crux_gnulinux-download-and-build
 # qemu-system-x86_64 -enable-kvm -m 1G -cdrom tmp.*/install.iso
 ```
+
+## Boot options
+
+Boobstrap's /init script can handle some kernel options ("cheats") while system boots.
+
+### boobs.use-shmfs
+
+All system data will be extracted to the pure "tmpfs" filesystem and then continue booting.
+
+This action may require a lot of RAM.
+
+Example, you have rootfs.cpio image with 1GB system stored in initrd image, and before
+system will be loaded completly they needed a 2GB of RAM: 1GB for rootfs.cpio and
+one more 1GB for extracted data. Use this with carefully. But if your image stores on
+ISO (not in initrd) you need only 1GB free of RAM.
+
+### boobs.use-overlayfs
+
+All system data will be mounted as overlays. This is recommended usage option, but you
+should enable the CONFIG_OVERLAY_FS=y in your kernel config.
+
+### boobs.search-rootfs
+
+Option required argument: `boobs.search-rootfs=file` or `boobs.search-rootfs=directory`.
+
+Search selected file or the directory with overlays on storage devices while booting.
+
+By default all created overlays stores in /system/overlays directory, but you can create
+own overlay with naming "filesystem.squashfs", put in root of your HDD and set this option:
+
+```sh
+boobs.search-rootfs=/filesystem.squashfs
+```
+
+### boobs.copy-to-ram
+
+Will copy overlays to the RAM before mounting.
+
+For example, you can boot with USB and unplug your USB-stick after system boots.
 
 ## Utilities
 
@@ -447,7 +487,7 @@ some packages, setting up config files, and so on.
 So then, run a system script:
 
 ```sh
-# ./boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild
+# ./boobstrap/bootstrap-systems/crux_gnulinux-core/crux_gnulinux-core.bbuild
 ```
 
 And now you will get a "production-ready" install.iso.
