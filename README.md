@@ -12,11 +12,14 @@ Boobstrap is a scripts complex for creating bootable GNU/Linux images.
     - [Quick start](#quick-start)
     - [Utilities](#utilities)
         - [mkbootstrap](#mkbootstrap)
-        - [exportroot/importroot](#exportrootimportroot)
         - [mkinitramfs](#mkinitramfs)
         - [mkbootisofs](#mkbootisofs)
+        - [mkoverlayfs](#mkoverlayfs)
+        - [exportroot / importroot](#exportroot--importroot)
     - [Use cases](#use-cases)
     - [Examples](#Examples)
+        - [initrd as standalone linux system](#initrd-as-standalone-linux-system)
+        - [MOAR](#moar)
     - [Friendly Asked Questions](#friendly-asked-questions)
 
 <!-- markdown-toc end -->
@@ -74,9 +77,9 @@ Software included:
 * mkbootstrap -- Install "chroot" with any distro.
 * mkinitramfs -- Create an initrd / initramfs image.
 * mkbootisofs -- Create a bootable ISO from a directory.
+* mkoverlayfs -- Creates images for using with Overlay FS.
 * exportroot -- Creates archive from the "chroot" directory.
 * importroot -- Restores "chroot" directory from the archive.
-* mkoverlayfs -- Creates images for using with Overlay FS.
 
 Software dependencies:
 
@@ -281,18 +284,42 @@ Also you can create a bootable ISO image with included data.
 
 mkbootisofs just creating a BIOS / UEFI bootable ISO from the specified directory.
 
-You must create it manually, then put a kernel and an initrd into it.
+```sh
+# mkbootisofs directory/ [options]
+```
+
+Available options:
+
+* `--output` "filename" -- filename to output the image. Can output to a STDOUT.
+
+Also you can add overlays using the same options as in mkinitramfs, i.e.:
+
+* `--overlay` "directory" -- add an overlay usting the selected directory.
+can be used so many times as you want.
+* `--as-directory` -- copy every overlay as directory.
+* `--as-cpio` -- creates cpio-archive from every overlay.
+* `--squashfs` -- creates SquashFS image for every overlay.
+* `--squashfs-xz` -- creates SquashFS image with XZ-compression for every overlay.
+
+> !!! Note: Using the `--as-directory` for put it on ISO is not recommended.
+
+Example:
+
+For ISO making you must create the ISO/ directory manually.
+Put a kernel and an initrd into it with your hands.
 
 ```sh
 # mkdir ./ISO/
 # mkdir ./ISO/boot
 # cp /boot/vmlinuz ./ISO/boot/vmlinuz
 # cp ./initrd ./ISO/boot/initrd
-# mkbootisofs ISO/ > bootable.iso
 ```
 
-For mkbootisofs you can use some options from mkinitramfs with the same effect, i.e.:
---overlay, --as-directory, --as-cpio, --squashfs, --squashfs-xz for adding overlays.
+Now you can just do mkbootisofs for create bootable ISO.
+
+```sh
+# mkbootisofs ISO/ > bootable.iso
+```
 
 And then you can using "dd" to burn it on a USB-flash.
 
@@ -300,42 +327,41 @@ And then you can using "dd" to burn it on a USB-flash.
 # dd if=./bootable.iso of=/dev/sdX status=progress
 ```
 
+Also you can create ISO image with some directories as overlays.
+
+```sh
+# mkbootisofs ISO/ \
+    --overlay "gnulinux-rootfs/"    \
+    --overlay "rootfs-changes/"   \
+    --squashfs-xz          \
+    --output "boot.iso"
+```
+
+Simple.
+
 ### mkoverlayfs
 
 ```sh
 # mkoverlayfs directory/ [options]
 ```
 
-mkoverlayfs creates archives from the directories.
+mkoverlayfs creates different archives from the selected directory.
+Don't use the `--overlay` option, use only one directory at time.
 
---as-cpio, --squashfs, --squashfs-xz options are supported.
+* `--as-directory` -- Copy directory as directory. Nuff said.
+* `--as-cpio` -- Creates cpio-archive from directory.
+* `--squashfs` -- Creates SquashFS image from directory.
+* `--squashfs-xz` -- Creates SquashFS image with XZ-compression from directory.
 
-For more examples how I use this look at the directories:
-
-* bootstrap-templates/
-* bootstrap-systems/
-
-Templates - scripts for chroots creation and saving, nothing else.
-
-Systems -- scripts for production-ready images configuration and creation.
-
-For example, run a template script:
+Example:
 
 ```sh
-# ./boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild
+mkoverlayfs chroot/ \
+    --squashfs-xz \
+    --output chroot.squashfs \
 ```
 
-You will get a "crux_gnulinux-embedded.rootfs" as a lightweight system for embedded use.
-Now you can use this template to configure all your embedded systems, adding
-some packages, setting up config files, and so on.
-
-So then, run a system script:
-
-```sh
-# ./boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild
-```
-
-And now you will get a "production-ready" install.iso.
+Just creates SquashFS XZ-compressed image from the "chroot/" directory.
 
 ## Use cases
 
@@ -371,7 +397,9 @@ And now you will get a "production-ready" install.iso.
 
 ## Examples
 
-For really good INITRD do this step-by-step:
+### initrd as standalone linux system
+
+For really good initrd do this step-by-step:
 
 * [ Download official CRUX GNU/Linux ISO ]
 * [ Mount it to ./cruxmedia ]
@@ -385,7 +413,7 @@ And now you have "crux_gnulinux-embedded.rootfs" with ~160MB++ size.
 * `./boobstrap/bootstrap-templates/crux_gnulinux-initrd/crux_gnulinux-initrd.bbuild`
 
 And now you have "crux_gnulinux-initrd.rootfs" with ~160MB++ size.
-Its a ready to boot INITRD image, but 160MB...
+Its a ready to boot initrd image, but 160MB...
 
 * `xz --check=crc32 --keep --threads=0 --best --verbose crux_gnulinux-initrd.rootfs`
 
@@ -393,7 +421,36 @@ And now you have "crux_gnulinux-initrd.rootfs.xz" with 32MB size!
 CRUX GNU/Linux as initramfs with OpenSSH included!
 Boot and run "ssh root@host-ip" to login into initramfs! Enjoy!
 
-See bootstrap-templates/ and bootstrap-systems/ for more examples.
+### MOAR
+
+Just see bootstrap-templates/ and bootstrap-systems/ for more examples.
+
+For more examples how I use this look at the directories:
+
+* bootstrap-templates/
+* bootstrap-systems/
+
+Templates - scripts for chroots creation and saving, nothing else.
+
+Systems -- scripts for production-ready images configuration and creation.
+
+For example, run a template script:
+
+```sh
+# ./boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild
+```
+
+You will get a "crux_gnulinux-embedded.rootfs" as a lightweight system for embedded use.
+Now you can use this template to configure all your embedded systems, adding
+some packages, setting up config files, and so on.
+
+So then, run a system script:
+
+```sh
+# ./boobstrap/bootstrap-systems/default/crux_gnulinux.bbuild
+```
+
+And now you will get a "production-ready" install.iso.
 
 ## Friendly Asked Questions
 
