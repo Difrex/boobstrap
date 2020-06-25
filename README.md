@@ -365,7 +365,7 @@ And now you will get a "production-ready" install.iso.
 
 2. Update; just put a new vmlinuz and initrd to the production server and run:
 
-   # kexec -l /vmlinuz --initrd=/initrd && kexec -e
+   `# kexec -l /vmlinuz --initrd=/initrd && kexec -e`
 
    to reload new confgiuration "on-the-fly".
 
@@ -379,8 +379,8 @@ And now you will get a "production-ready" install.iso.
 
    1. Create your configuration by one command or a script.
    2. Upload to the remote server (VDS or something).
-   3. # kexec -l /vmlinuz --initrd=/initrd
-   4. # systemctl kexec (a Debian-like way)
+   3. `# kexec -l /vmlinuz --initrd=/initrd`
+   4. `# systemctl kexec` (a Debian-like way)
    5. Create your own bootable ISO, upload it via the hoster's control panel.
    6. Boot it every time from your own ISO with your configuration!
    7. Format any existing /dev/vda disks, they are no more needed!
