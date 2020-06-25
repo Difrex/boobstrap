@@ -66,13 +66,10 @@ Yes, my "enterprise" is a PC-router with 2GB RAM running in tmpfs. HA-HA.
 * That's secure -- if your system breaks, just push the "RESET" button.
 * That's NO backups -- back up only your data, not the system.
 
-Don't be afraid to use "root".
-
-Don't be afraid to break the system.
-
-Don't be afraid to run shell-exploits.
-
-Don't be afraid to do "rm -rf /".
+* Don't be afraid to use "root".
+* Don't be afraid to break the system.
+* Don't be afraid to run shell-exploits.
+* Don't be afraid to do "rm -rf /".
 
 When my system breaks I push the "RESET" button and the system boots again.
 -- via PXE or from a USB-flash (ISO).
