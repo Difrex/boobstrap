@@ -22,7 +22,7 @@ crux_gnulinux() {
 											\
 		--overlay "$DIR/bootstrap"						\
 											\
-		--squashfs-xz								\
+		--format "cpio"								\
 											\
 		--output "$DIR/install.iso"
 }

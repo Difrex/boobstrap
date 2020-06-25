@@ -110,11 +110,11 @@ exit 0
 			CODE="$?"
 			;;
 		"squashfs")
-			ofs_mk_squashfs "$OVERLAY" "$IMAGE.squashfs"
+			ofs_mk_squashfs "$OVERLAY" "$IMAGE.sqfs"
 			CODE="$?"
 			;;
 		"squashfs xz")
-			ofs_mk_squashfs_xz "$OVERLAY" "$IMAGE.squashfs"
+			ofs_mk_squashfs_xz "$OVERLAY" "$IMAGE.sqfs"
 			CODE="$?"
 			;;
 		*)
@@ -245,6 +245,8 @@ exit 0
 }
 
 mkbootisofs() {
+	iso_pre_run
+
 	DIR=""
 	OUTPUT=""
 	IS_OVERLAY=""
@@ -659,15 +661,15 @@ rd_gen_init() {
 rd_make_dir() {
 	echo "Creating system directories" | msg -2
 	hi
-	for dir in "proc" "sys" "dev" "run"; do
-		mkdir -p $1/$dir 2>/dev/null
+	for dir in "/proc" "/sys" "/dev" "/run" "/sbin" "/usr/sbin" "/bin" "/usr/bin"; do
+		mkdir -p $1$dir 2>/dev/null
 		CODE="$?"
 		case "$CODE" in
 			"0")
-				echo "/$dir" | msg -2 --foreground "Light Blue"
+				echo "$dir" | msg -2 --foreground "Light Blue"
 				;;
 			*)
-				echo "/$dir" | msg -2 --foreground "Light Red" --highlight
+				echo "$dir" | msg -2 --foreground "Light Red" --highlight
 				hi
 				echo "Failure [$CODE]" | msg -2 --foreground "Brown"
 				lo
@@ -675,6 +677,49 @@ rd_make_dir() {
 		esac
 	done
 	lo
+}
+
+iso_pre_run() {
+	iso_pre_run_checks
+}
+
+iso_pre_run_checks() {
+	for dir in "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc"; do
+		if test -f "$dir/cdboot.img"; then
+			GRUB_i386_CDBOOT="$dir/cdboot.img"
+		fi
+		if test -f "$dir/boot_hybrid.img"; then
+			GRUB_i386_HYBRID="$dir/boot_hybrid.img"
+		fi
+	done
+
+	if test "$GRUB_i386_CDBOOT" = ""; then
+		echo "cdboot.img none found. install grub-pc-bin or something."
+		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img"
+		return 1
+	fi
+
+	if test "$GRUB_i386_HYBRID" = ""; then
+		echo "boot_hybrid.img none found. install grub-pc-bin or something."
+		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img"
+		return 1
+	fi
+
+	for font in "/usr/lib/grub/fonts/"*".pf2" "/lib/grub/fonts/"*".pf2" "/usr/share/grub/"*".pf2"; do
+		if test -f "$font"; then
+			GRUB_FONT="$font"
+		fi
+	done
+	
+	if test "$GRUB_FONT" = ""; then
+		echo "any *.pf2 file none found. check your grub files."
+		echo "or specify file: export GRUB_FONT=./unicode.pf2"
+		echo "continue to running without any font."
+	else
+		GRUB_FONT="/boot/grub/font.pf2=$GRUB_FONT"
+	fi
+	
+	return 0
 }
 
 iso_bootloader_conf() {
@@ -829,26 +874,9 @@ lo() {
 }
 
 msg() {
-	STDOUT=""
-	STDERR=""
-	while test "$1"; do
-		case "$1" in
-			"-1") STDOUT="yes" ;;
-			"-2") STDERR="yes" ;;
-		esac
-		shift
+	while read -r input; do
+		echo "$input" >&2
 	done
-	if test "$STDOUT" = "yes"; then
-		while read -r input; do
-			echo "$input"
-		done
-	fi
-	if test "$STDERR" = "yes"; then
-		while read -r input; do
-			echo "$input" 1>&2
-		done
-	fi
-	return 0
 }
 
 main() {
@@ -895,41 +923,6 @@ preflight_checks() {
 		echo "if you sure is it installed check for PATH variable"
 		echo "some utilities requires root priveleges"
 		return 1
-	fi
-
-	for dir in "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc"; do
-		if test -f "$dir/cdboot.img"; then
-			GRUB_i386_CDBOOT="$dir/cdboot.img"
-		fi
-		if test -f "$dir/boot_hybrid.img"; then
-			GRUB_i386_HYBRID="$dir/boot_hybrid.img"
-		fi
-	done
-
-	if test "$GRUB_i386_CDBOOT" = ""; then
-		echo "cdboot.img none found. install grub-pc-bin or something."
-		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img"
-		return 1
-	fi
-
-	if test "$GRUB_i386_HYBRID" = ""; then
-		echo "boot_hybrid.img none found. install grub-pc-bin or something."
-		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img"
-		return 1
-	fi
-
-	for font in "/usr/lib/grub/fonts/"*".pf2" "/lib/grub/fonts/"*".pf2" "/usr/share/grub/"*".pf2"; do
-		if test -f "$font"; then
-			GRUB_FONT="$font"
-		fi
-	done
-	
-	if test "$GRUB_FONT" = ""; then
-		echo "any *.pf2 file none found. check your grub files."
-		echo "or specify file: export GRUB_FONT=./unicode.pf2"
-		echo "continue to running without any font."
-	else
-		GRUB_FONT="/boot/grub/font.pf2=$GRUB_FONT"
 	fi
 
 	if test "$COLOURS" = ""; then
