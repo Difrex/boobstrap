@@ -1,6 +1,6 @@
-# Boobstrap
+GL HF
 
-GL HF.
+# Boobstrap
 
 Boobstrap is a scripts complex for creating bootable GNU/Linux images.
 
@@ -24,6 +24,7 @@ Boobstrap is a scripts complex for creating bootable GNU/Linux images.
     - [Use cases](#use-cases)
     - [Examples](#Examples)
         - [initrd as standalone linux system](#initrd-as-standalone-linux-system)
+        - [boot to any linux from the storage device](#boot-to-any-linux-from-the-storage-device)
         - [MOAR](#moar)
     - [Friendly Asked Questions](#friendly-asked-questions)
 
@@ -461,6 +462,47 @@ Its a ready to boot initrd image, but 160MB...
 And now you have "crux_gnulinux-initrd.rootfs.xz" with 32MB size!
 CRUX GNU/Linux as initramfs with OpenSSH included!
 Boot and run "ssh root@host-ip" to login into initramfs! Enjoy!
+
+### boot to any linux from the storage device
+
+You can boot to any Linux. For example I take the Gentoo GNU/Linux.
+So got the Gentoo GNU/Linux, download stage3 first from the official web-site.
+Do it with your hands.
+
+```sh
+# wget https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/[...]/stage3-amd64-[...].tar.xz
+# mkdir gentoo/
+# tar xf stage3-* -C gentoo/
+```
+
+Optional do with your hands any configuration with "chroot". Any.
+Now create the SquashFS archive (overlay) with Gentoo's "chroot".
+Put it in everywhere... to the root of your storage device.
+
+```sh
+# mkoverlayfs gentoo/ --squashfs-xz --output /gentoo.squashfs
+```
+
+Create a standlone initrd image.
+
+```sh
+# mkdir initramfs/
+# mkinitramfs initramfs/ > /boot/initrd
+```
+
+And then setup your bootloader for booting by using this initrd with pass some
+options to the kernel.
+
+```sh
+linux /boot/vmlinuz boobs.use-overlayfs boobs.search-rootfs=/gentoo.squashfs
+initrd /boot/initrd
+```
+
+Optional add the `boobs.copy-to-ram` option for booting to RAM and take out your
+storage device.
+
+Thats it. It can be USB storage or something else, you can setup your configuration
+on the local machine, upload it to your KVM (VDS, VPS and so on) and boot! Enjoy.
 
 ### MOAR
 
