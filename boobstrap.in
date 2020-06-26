@@ -200,12 +200,12 @@ exit 0
 	if test "$IS_OVERLAY" = "yes"; then
 		NUM=0
 		echo "Prepare overlays" | msg -2
-		mkdir -p "$DIR/media/system/overlays" 2>/dev/null
+		mkdir -p "$DIR/media/system" 2>/dev/null
 		hi
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
-			TARGET="$DIR/media/system/overlays/$NUM-$(basename $overlay)"
+			TARGET="$DIR/media/system/$NUM-$(basename $overlay)"
 			mkoverlayfs "$SOURCE" \
 				--output "$TARGET" \
 				--format "$FORMAT"
@@ -244,6 +244,166 @@ exit 0
 	echo "Done [$DIR]" | msg -2
 }
 
+boot_wipe_data() {
+	if test -b "$1"; then
+		echo "DEVICE $1 WILL BE WIPED" | msg -2 --foreground "Light Red" --highlight
+		echo "IF YOU SURE TYPE TO CONFIRM" | msg -2 --foreground "Light Red" --highlight
+		echo "Yes, Senpai~~~ OOOHH" | msg -2 --foreground "Light Blue"
+
+		while read -r input; do
+			case "$input" in
+				"Yes, Senpai~~~ OOOHH") break ;;
+				*) exit 0 ;;
+			esac
+		done
+
+		echo "Wiping device [$1]" | msg -2
+
+		dd if="/dev/zero" of="$1" bs="1M" count=64 1>/dev/null 2>/dev/null
+
+		echo "Creating partition table" | msg -2
+
+		(
+		echo g                                # GPT
+		echo n                                # New partition
+		echo 1                                # First
+		echo                                  # Start from (default)
+		echo +1M                              # Size
+		echo n                                # New partition
+		echo 2                                # Second
+		echo                                  # Start from (default)
+		echo +50M                             # Size
+		echo n                                # New partition
+		echo 3                                # Third
+		echo                                  # Start from (default)
+		echo                                  # Size (everything)
+		echo t                                # Set "Type" partition
+		echo 1                                # First
+		echo 4                                # "BIOS boot"
+		echo t                                # Set "Type" partition
+		echo 2                                # Second
+		echo 1                                # "EFI System"
+		echo t                                # Set "Type" partition
+		echo 3                                # Third
+		echo 11                               # "Microsoft basic data"
+		echo w                                # Save changes
+		) | fdisk "$1" 1>/dev/null 2>/dev/null
+
+		echo "Formatting partitions" | msg -2
+
+		mkdosfs -F 32 $12 1>/dev/null 2>/dev/null # FAT32 for EFI
+		
+		mkdosfs -F 32 $13 1>/dev/null 2>/dev/null # FAT32 for BIGDATA, LMAO
+	else
+		echo "Device $1 is not a block device" | msg -2 --foreground "Brown"
+	fi
+}
+
+mkbootable() {
+	DEV=""
+	DIR=""
+	DATA_MOUNTPOINT=""
+	UEFI_MOUNTPOINT=""
+	KERNEL=""
+	INITRD=""
+	IS_OVERLAY=""
+	OVERLAYS=""
+	FORMAT=""
+
+	while test "$1"; do
+		case "$1" in
+			"--kernel") KERNEL="$2" ; shift ;;
+			"--initrd") INITRD="$2" ; shift ;;
+			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
+			"--format") FORMAT="$2" ; shift ;;
+			"--as-directory") FORMAT="directory" ;;
+			"--as-cpio") FORMAT="cpio" ;;
+			"--squashfs") FORMAT="squashfs" ;;
+			"--squashfs-xz") FORMAT="squashfs xz" ;;
+			"--help")
+				cat <<EOF
+$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+Usage: mkbootable <device> [options]...
+Creates BIOS and UEFI compatible bootable device storages.
+
+Nothing here.
+EOF
+exit 0
+				;;
+			*)
+				if test "$DEV" = ""; then
+					DEV="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+	boot_wipe_data "$DEV"
+	echo "Creating bootable device [$DEV]" | msg -2
+	DATA_MOUNTPOINT="$(mktemp -d)"
+	UEFI_MOUNTPOINT="$DATA_MOUNTPOINT/boot/EFI"
+	mount "${DEV}3" "$DATA_MOUNTPOINT"
+	mkdir -p "$UEFI_MOUNTPOINT"
+	mount "${DEV}2" "$UEFI_MOUNTPOINT"
+
+	grub-install						\
+		--boot-directory="$DATA_MOUNTPOINT/boot"	\
+		--target="x86_64-efi"				\
+		--removable					\
+		--efi-directory="$UEFI_MOUNTPOINT"		\
+		--recheck 1>/dev/null 2>/dev/null
+
+	grub-install "$DEV"					\
+		--boot-directory="$DATA_MOUNTPOINT/boot"	\
+		--target="i386-pc"				\
+		--recheck 1>/dev/null 2>/dev/null
+
+	umount "$UEFI_MOUNTPOINT"
+
+	DIR="$DATA_MOUNTPOINT"
+
+	iso_bootloader_conf "$DIR"
+
+	if test -f "$KERNEL"; then
+		cp -a "$KERNEL" "$DIR/boot/vmlinuz"
+	fi
+
+	if test -f "$INITRD"; then
+		cp -a "$INITRD" "$DIR/boot/initrd"
+	fi
+
+	if test "$FORMAT" = ""; then
+		FORMAT="cpio"
+	fi
+
+	if test "$IS_OVERLAY" = "yes"; then
+		NUM=0
+		echo "Prepare overlays" | msg -2
+		mkdir -p "$DIR/system"
+		hi
+		for overlay in $OVERLAYS; do
+			NUM="$(($NUM + 10))"
+			SOURCE="$overlay"
+			TARGET="$DIR/system/$NUM-$(basename $overlay)"
+			mkoverlayfs "$SOURCE" \
+				--output "$TARGET" \
+				--format "$FORMAT"
+			CODE="$?"
+			hi
+			case "$CODE" in
+				"0") echo "Success" | msg -2 --foreground "Light Green" ;;
+				*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
+			esac
+			lo
+		done
+		lo
+		echo "Overlays done" | msg -2
+	fi
+
+	umount "$DATA_MOUNTPOINT"
+	echo "Done [$DEV]" | msg -2
+}
+
 mkbootisofs() {
 	iso_pre_run
 
@@ -256,7 +416,6 @@ mkbootisofs() {
 	while test "$1"; do
 		case "$1" in
 			"--output") OUTPUT="$(realpath $2)" ; shift ;;
-			"--standalone") IS_STANDALONE="yes" ;;
 			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
 			"--format") FORMAT="$2" ; shift ;;
 			"--as-directory") FORMAT="directory" ;;
@@ -292,12 +451,12 @@ exit 0
 	if test "$IS_OVERLAY" = "yes"; then
 		NUM=0
 		echo "Prepare overlays" | msg -2
-		mkdir -p "$DIR/system/overlays"
+		mkdir -p "$DIR/system"
 		hi
 		for overlay in $OVERLAYS; do
 			NUM="$(($NUM + 10))"
 			SOURCE="$overlay"
-			TARGET="$DIR/system/overlays/$NUM-$(basename $overlay)"
+			TARGET="$DIR/system/$NUM-$(basename $overlay)"
 			mkoverlayfs "$SOURCE" \
 				--output "$TARGET" \
 				--format "$FORMAT"
@@ -694,14 +853,14 @@ iso_pre_run_checks() {
 	done
 
 	if test "$GRUB_i386_CDBOOT" = ""; then
-		echo "cdboot.img none found. install grub-pc-bin or something."
-		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img"
+		echo "cdboot.img none found. install grub-pc-bin or something." | msg -2
+		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img" | msg -2
 		return 1
 	fi
 
 	if test "$GRUB_i386_HYBRID" = ""; then
-		echo "boot_hybrid.img none found. install grub-pc-bin or something."
-		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img"
+		echo "boot_hybrid.img none found. install grub-pc-bin or something." | msg -2
+		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img" | msg -2
 		return 1
 	fi
 
@@ -712,9 +871,9 @@ iso_pre_run_checks() {
 	done
 	
 	if test "$GRUB_FONT" = ""; then
-		echo "any *.pf2 file none found. check your grub files."
-		echo "or specify file: export GRUB_FONT=./unicode.pf2"
-		echo "continue to running without any font."
+		echo "any *.pf2 file none found. check your grub files." | msg -2
+		echo "or specify file: export GRUB_FONT=./unicode.pf2" | msg -2
+		echo "continue to running without any font." | msg -2
 	else
 		GRUB_FONT="/boot/grub/font.pf2=$GRUB_FONT"
 	fi
@@ -905,6 +1064,7 @@ exit 0
 		"exportroot") exportroot "$@" ;;
 		"importroot") importroot "$@" ;;
 		"mkoverlayfs") mkoverlayfs "$@" ;;
+		"mkbootable") mkbootable "$@" ;;
 	esac
 }
 
@@ -918,10 +1078,10 @@ preflight_checks() {
 	done
 
 	if test "$TEST" = "x"; then
-		echo "install: cpio, dosfstools, grub, grub-efi, xorriso."
-		echo "nice to have (optional): squashfs-tools, busybox."
-		echo "if you sure is it installed check for PATH variable"
-		echo "some utilities requires root priveleges"
+		echo "install: cpio, dosfstools, grub, grub-efi, xorriso." | msg -2
+		echo "nice to have (optional): squashfs-tools, busybox." | msg -2
+		echo "if you sure is it installed check for PATH variable" | msg -2
+		echo "some utilities requires root priveleges" | msg -2
 		return 1
 	fi
 

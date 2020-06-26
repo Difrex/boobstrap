@@ -31,6 +31,7 @@ install: all
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/exportroot
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/importroot
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkoverlayfs
+	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkbootable
 
 clean:
 	rm -f boobstrap

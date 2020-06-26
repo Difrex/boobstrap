@@ -195,9 +195,9 @@ main() {
 		fi
 	done
 
-	mount -t proc proc /proc
+	mount -t proc none /proc
 	echo "0" >/proc/sys/kernel/printk
-	mount -t sysfs sysfs /sys
+	mount -t sysfs none /sys
 	mount -t devtmpfs none /dev
 	mount -t tmpfs none /run
 
@@ -206,7 +206,7 @@ main() {
 	done < /proc/cmdline
 
 	if test "$SEARCH_ROOTFS" = ""; then
-		SEARCH_ROOTFS="/system/overlays"
+		SEARCH_ROOTFS="/system"
 	fi
 
 	SEARCH_ROOTFS="/media$SEARCH_ROOTFS"
@@ -225,6 +225,8 @@ main() {
 
 	if test -x "$(which mdev)"; then
 		mdev -s
+
+		sleep 3
 
 		if test -f "/proc/sys/kernel/hotplug"; then
 			echo "$(which mdev)" > /proc/sys/kernel/hotplug
