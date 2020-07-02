@@ -14,7 +14,8 @@ Boobstrap is a scripts complex for creating bootable GNU/Linux images.
         - [boobs.use-shmfs](#boobs.use-shmfs)
         - [boobs.use-overlayfs](#boobs.use-overlayfs)
         - [boobs.search-rootfs](#boobs.search-rootfs)
-        - [boobs.copy-to-ram](#boobs.copy-to-ram)
+        - [boobs.overlay-to-ram](#boobs.overlay-to-ram)
+        - [boobs.overlay-cache](#boobs.overlay-cache)
     - [Utilities](#utilities)
         - [mkbootstrap](#mkbootstrap)
         - [mkinitramfs](#mkinitramfs)
@@ -164,11 +165,20 @@ own overlay with naming "filesystem.squashfs", put in root of your HDD and set t
 boobs.search-rootfs=/filesystem.squashfs
 ```
 
-### boobs.copy-to-ram
+### boobs.overlay-to-ram
 
 Will copy overlays to the RAM before mounting.
 
 For example, you can boot with USB and unplug your USB-stick after system boots.
+
+### boobs.overlay-cache
+
+While using Overlay FS all your data stores in SHMFS (tmpfs, ramffs) by default, but you can
+create a empty file on your storage device, then create any supported by kernel filesystem on
+this file (image) and use it as storage for your data, instead of storing data in temporarely SHMFS.
+
+Example `boobs.overlay-cache=/dev/sda1` for using whole /dev/sda1 as storage for any changes.
+While reboots cache-data is keep. Storage (file with filesystem) must be created manually.
 
 ## Utilities
 
@@ -498,7 +508,7 @@ linux /boot/vmlinuz boobs.use-overlayfs boobs.search-rootfs=/gentoo.squashfs
 initrd /boot/initrd
 ```
 
-Optional add the `boobs.copy-to-ram` option for booting to RAM and take out your
+Optional add the `boobs.overlay-to-ram` option for booting to RAM and take out your
 storage device.
 
 Thats it. It can be USB storage or something else, you can setup your configuration

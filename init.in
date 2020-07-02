@@ -1,169 +1,113 @@
 #! /usr/bin/env sh
 
 search_media() {
-	echo "Searching media"
-	mkdir -p "/media"
-
+	ROOT=""
+	TARGET=""
 	# ANYBODY STILL USING CD-ROM?
 	CDROM_DEVICES=""
 	BLOCK_DEVICES=""
 
+	while test "$1"; do
+		case "$1" in
+			"--target"|"-t") TARGET="$2" ; shift ;;
+			"--root"|"-r") ROOT="$2" ; shift ;;
+			"--help"|"-h") exit 0 ;;
+		esac
+		shift
+	done
+
+	echo "Searching media"
+	mkdir -p "$ROOT"
+
 	while read -r x y z partition; do
-		BLOCK_DEVICES="$BLOCK_DEVICES $partition"
+		BLOCK_DEVICES="$BLOCK_DEVICES /dev/$partition"
 	done < "/proc/partitions"
 
-	for dev in $CDROM_DEVICES $BLOCK_DEVICES; do
-		if test -b "/dev/$dev"; then
-			echo "In $dev"
-			mount -r "/dev/$dev" "/media" 2>/dev/null
+	for dev in $TARGET $CDROM_DEVICES $BLOCK_DEVICES; do
+		if test -b "$dev"; then
+			echo "Try $dev ..."
+			mount -r "$dev" "$ROOT" 1>/dev/null 2>/dev/null
 			if test "$?" = "0"; then
-				if test -d "$@"; then
+				if test -b "$TARGET"; then
+					echo "Found in $TARGET"
 					echo "Searching media done"
 					return 0
 				fi
-				if test -f "$@"; then
+				if test -d "$ROOT$TARGET"; then
+					echo "Found in $ROOT$TARGET"
 					echo "Searching media done"
 					return 0
 				fi
-				umount "/media"
+				if test -f "$ROOT$TARGET"; then
+					echo "Found in $ROOT$TARGET"
+					echo "Searching media done"
+					return 0
+				fi
+				umount "$ROOT"
 			fi
 		fi
 	done
 
-	echo "Fallback to initramfs"
 	return 1
 }
 
-filesystem() {
-	if test "$USE_FILESYSTEM" = "SHMFS"; then
-		FILESYSTEM_MOUNT="/mnt/shm"
-		mkdir -p "$FILESYSTEM_MOUNT"
+search_filesystem() {
+	SEARCH_ROOTFS=""
+	OVERLAY_PATH=""
+	EXTRACT_PATH=""
 
-		mkdir -p "$SWITCH_ROOTFS"
-		mount -t tmpfs -o size=100% tmpfs "$SWITCH_ROOTFS"
+	while test "$1"; do
+		case "$1" in
+			"--search"|"-s") SEARCH_ROOTFS="$2" ; shift ;;
+			"--overlay"|"-o") OVERLAY_PATH="$2" ; shift ;;
+			"--extract"|"-x") EXTRACT_PATH="$2" ; shift ;;
+			"--help"|"-h") exit 0 ;;
+		esac
+		shift
+	done
 
-		echo "Searching filesystem"
-		for fs in $@; do
-			if test -f "$fs"; then
-				if try_filesystem "$fs" on "$FILESYSTEM_MOUNT"; then
-					cp -r -f "$(catch_filesystem $f in $FILESYSTEM_MOUNT)/"* "$SWITCH_ROOTFS"
-				fi
-			fi
-			if test -d "$fs"; then
-				for f in "$fs/"*; do
-					if try_filesystem "$f" on "$FILESYSTEM_MOUNT"; then
-						cp -r -f "$(catch_filesystem $f in $FILESYSTEM_MOUNT)/"* "$SWITCH_ROOTFS"
-					fi
-				done
-			fi
+	if test -d "$SEARCH_ROOTFS"; then
+		for fs in "$SEARCH_ROOTFS/"*; do
+			echo "In $fs ..."
+			search_filesystem -s "$fs" -o "$OVERLAY_PATH" -x "$EXTRACT_PATH"
 		done
-		echo "Searching filesystem done"
-
+		
 		return 0
 	fi
-	if test "$USE_FILESYSTEM" = "OVERLAY_FS"; then
-		FILESYSTEM_MOUNT="/mnt/overlay"
-		mkdir -p "$FILESYSTEM_MOUNT"
-		mount -t tmpfs tmpfs "$FILESYSTEM_MOUNT"
 
-		mkdir -p "$SWITCH_ROOTFS"
-		mount -t tmpfs -o size=100% tmpfs "$SWITCH_ROOTFS"
+	echo "Filesystem $SEARCH_ROOTFS"
 
-		OVERLAY_LOWERDIR=""
-
-		OVERLAY_UPPERDIR="$FILESYSTEM_MOUNT/rootfs-changes"
-		mkdir -p "$OVERLAY_UPPERDIR"
-		
-		OVERLAY_WORK_DIR="$FILESYSTEM_MOUNT/tmp"
-		mkdir -p "$OVERLAY_WORK_DIR"
-
-		echo "Searching filesystem"
-		for fs in $@; do
-			if test -f "$fs"; then
-				if try_filesystem "$fs" on "$FILESYSTEM_MOUNT"; then
-					OVERLAY_LOWERDIR="$(catch_filesystem $fs in $FILESYSTEM_MOUNT):$OVERLAY_LOWERDIR"
-				fi
-			fi
-			if test -d "$fs"; then
-				for f in "$fs/"*; do
-					if try_filesystem "$f" on "$FILESYSTEM_MOUNT"; then
-						OVERLAY_LOWERDIR="$(catch_filesystem $f in $FILESYSTEM_MOUNT):$OVERLAY_LOWERDIR"
-					fi
-				done
-			fi
-		done
-		echo "Searching filesystem done"
-
-		if test "$OVERLAY_LOWERDIR" = ""; then
-			echo "No working filesystem found"
-			return 1
-		fi
-
-		L="${OVERLAY_LOWERDIR%?}"
-		U="$OVERLAY_UPPERDIR"
-		W="$OVERLAY_WORK_DIR"
-
-		if mount -t overlay -o lowerdir="$L",upperdir="$U",workdir="$W" rootfs "$SWITCH_ROOTFS"; then
-			mkdir -p "$SWITCH_ROOTFS$FILESYSTEM_MOUNT"
-			mount -o bind,ro "$FILESYSTEM_MOUNT" "$SWITCH_ROOTFS$FILESYSTEM_MOUNT"
-			echo "Install merged tmpfs as rootfs"
-			return 0
-		fi
-
-		echo "Check /proc/config* for CONFIG_OVERLAY_FS"
-		return 1
-	fi
-}
-
-try_filesystem() {
-	echo "Filesystem $1"
-	case "$1" in
+	case "$SEARCH_ROOTFS" in
 		*".cpio")
-			use_driver_cpio "$1" "$3/${1##*'/'}"
-			CODE="$?"
+			if test "$EXTRACT_PATH"; then
+				use_driver_cpio "$SEARCH_ROOTFS" "$EXTRACT_PATH"
+				CODE="$?"
+			else
+				use_driver_cpio "$SEARCH_ROOTFS" "$OVERLAY_PATH$SEARCH_ROOTFS"
+				CODE="$?"
+			fi
 			;;
 		*".squashfs")
-			use_driver_mount "$1" "$3/${1##*'/'}"
-			CODE="$?"
-			;;
-		*)
-			use_driver_copy "$1" "$3/${1##*'/'}"
-			CODE="$?"
+			if test "$EXTRACT_PATH"; then
+				use_driver_mount "$SEARCH_ROOTFS" "$OVERLAY_PATH$SEARCH_ROOTFS"
+				cp -a -f "$OVERLAY_PATH$SEARCH_ROOTFS/"* "$EXTRACT_PATH"
+				umount "$OVERLAY_PATH$SEARCH_ROOTFS"
+				CODE="$?"
+			else
+				use_driver_mount "$SEARCH_ROOTFS" "$OVERLAY_PATH$SEARCH_ROOTFS"
+				CODE="$?"
+			fi
 			;;
 	esac
+
 	if test "$CODE" = "0"; then
-		echo "Filesystem is now on $3/${1##*'/'}"
+		echo "Filesystem success"
+		echo "$OVERLAY_PATH$SEARCH_ROOTFS" >> "/tmp/.overlay_fs"
 	else
-		echo "Filesystem mount failed"
+		echo "Filesystem failed"
 	fi
-}
 
-catch_filesystem() {
-	if test -d "$3/${1##*'/'}"; then
-		echo "$3/${1##*'/'}"
-		return 0
-	fi
-	return 1
-}
-
-use_driver_copy() {
-	mkdir -p "$2"
-	if test -d "$1"; then
-		if cp -a "$1/"* "$2" 2>/dev/null; then
-			return 0
-		fi
-	fi
-	return 1
-}
-
-use_driver_cpio() {
-	mkdir -p "$2"
-	cd "$2"
-	if cpio -i -d -H "newc" < "$1" 1>/dev/null 2>/dev/null; then
-		return 0
-	fi
-	cd "$OLDPWD"
-	return 1
+	return $CODE
 }
 
 use_driver_mount() {
@@ -174,13 +118,25 @@ use_driver_mount() {
 	return 1
 }
 
+use_driver_cpio() {
+	mkdir -p "$2"
+	cd "$2"
+	if cpio -i -d -H "newc" < "$1"; then
+		return 0
+	fi
+	cd "$OLDPWD"
+	return 1
+}
+
 cheat_sheet() {
 	while test "$1"; do
 		case "$1" in
 			"boobs.search-rootfs="*) SEARCH_ROOTFS="${1##*=}" ;;
-			"boobs.copy-to-ram") COPY_TO_RAM="yes" ;;
 			"boobs.use-overlayfs") USE_FILESYSTEM="OVERLAY_FS" ;;
 			"boobs.use-shmfs") USE_FILESYSTEM="SHMFS" ;;
+			"boobs.overlay-to-ram") OVERLAY_TO_RAM="yes" ;;
+			"!boobs.overlay-to-ram") OVERLAY_TO_RAM="no" ;;
+			"boobs.overlay-cache="*) OVERLAY_CACHE="${1##*=}" ;;
 		esac
 		shift
 	done
@@ -209,14 +165,8 @@ main() {
 		SEARCH_ROOTFS="/system"
 	fi
 
-	SEARCH_ROOTFS="/media$SEARCH_ROOTFS"
-
-	if test "$SWITCH_ROOTFS" = ""; then
-		SWITCH_ROOTFS="/mnt/merged"
-	fi
-
-	if test "$COPY_TO_RAM" = ""; then
-		COPY_TO_RAM="no"
+	if test "$OVERLAY_TO_RAM" = ""; then
+		OVERLAY_TO_RAM="no"
 	fi
 
 	if test "$USE_FILESYSTEM" = ""; then
@@ -225,35 +175,110 @@ main() {
 
 	if test -x "$(which mdev)"; then
 		mdev -s
-
-		sleep 3
-
+		sleep 5
 		if test -f "/proc/sys/kernel/hotplug"; then
 			echo "$(which mdev)" > /proc/sys/kernel/hotplug
 		fi
-
-		if search_media "$SEARCH_ROOTFS"; then
-			if test "$COPY_TO_RAM" = "yes"; then
-				SWITCH_NEXTFS="/mnt/toram"
-				echo "Start copying system to the RAM drive"
-				mkdir -p "$SWITCH_NEXTFS"
-				mount -t tmpfs -o "size=100%" toram "$SWITCH_NEXTFS"
-				if test -d "$SEARCH_ROOTFS"; then
-					cp -r -v "$SEARCH_ROOTFS/"* "$SWITCH_NEXTFS"
-				fi
-				if test -f "$SEARCH_ROOTFS"; then
-					SWITCH_NEXTFS="$SWITCH_NEXTFS/${SEARCH_ROOTFS%%*/}"
-					cp -r -v "$SEARCH_ROOTFS" "$SWITCH_NEXTFS"
-				fi
-				SEARCH_ROOTFS="$SWITCH_NEXTFS"
-				echo "Device can be successfully unplugged now"
-				unset SWITCH_NEXTFS
-			fi
-		fi
 	fi
 
-	if filesystem "$SEARCH_ROOTFS"; then
-		echo "Filesystem OK"
+	if search_media -t "$SEARCH_ROOTFS" -r "/media"; then
+		if test "$OVERLAY_TO_RAM" = "yes"; then
+			echo "Start copying system to the RAM drive"
+			mkdir -p "/mnt/toram"
+			mount -t tmpfs -o "size=100%" toram "/mnt/toram"
+			if test -b "$SEARCH_ROOTFS"; then
+				ROOT="/mnt/toram/media"
+				cp -a "/media" "$ROOT"
+			elif test -d "/media$SEARCH_ROOTFS"; then
+				ROOT="/mnt/toram"
+				cp -r "/media$SEARCH_ROOTFS" "$ROOT"
+			elif test -f "/media$SEARCH_ROOTFS"; then
+				ROOT="/mnt/toram"
+				cp -r "/media$SEARCH_ROOTFS" "$ROOT"
+			fi
+			umount "/media"
+			echo "Device can be successfully unplugged now"
+		fi
+		if test "$OVERLAY_TO_RAM" = "no"; then
+			if test -b "$SEARCH_ROOTFS"; then
+				ROOT="/media"
+			elif test -d "/media$SEARCH_ROOTFS"; then
+				ROOT="/media$SEARCH_ROOTFS"
+			elif test -f "/media$SEARCH_ROOTFS"; then
+				ROOT="/media$SEARCH_ROOTFS"
+			fi
+		fi
+	else
+		ROOT="/media$SEARCH_ROOTFS"
+		echo "Fallback to boot from initramfs"
+	fi
+
+	if test "$USE_FILESYSTEM" = "SHMFS"; then
+		SWITCH_ROOTFS="/newroot"
+
+		DRIVER_PATH="/mnt/shmfs"
+		mkdir -p "$DRIVER_PATH"
+		mount -t tmpfs -o size=1% tmpfs "$DRIVER_PATH" # 1% enough for mounts only
+
+		mkdir -p "$SWITCH_ROOTFS"
+		mount -t tmpfs -o size=100% tmpfs "$SWITCH_ROOTFS"
+
+		echo "Searching filesystem"
+		if test -b "$SEARCH_ROOTFS"; then
+			SWITCH_ROOTFS="$ROOT"
+		else
+			search_filesystem -s "$ROOT" -o "$DRIVER_PATH" -x "$SWITCH_ROOTFS"
+		fi
+		echo "Searching filesystem done"
+	fi
+
+	if test "$USE_FILESYSTEM" = "OVERLAY_FS"; then
+		SWITCH_ROOTFS="/newroot"
+
+		DRIVER_PATH="/mnt/overlay_fs"
+		mkdir -p "$DRIVER_PATH"
+		mount -t tmpfs -o size=100% tmpfs "$DRIVER_PATH"
+
+		mkdir -p "$SWITCH_ROOTFS"
+		mount -t tmpfs -o size=100% tmpfs "$SWITCH_ROOTFS"
+
+		echo "Searching filesystem"
+		if test -b "$SEARCH_ROOTFS"; then
+			echo "$ROOT" > /tmp/.overlay_fs
+		else
+			search_filesystem -s "$ROOT" -o "$DRIVER_PATH"
+		fi
+		echo "Searching filesystem done"
+
+		while read line; do
+			LOWERDIR="$line:$LOWERDIR"
+		done < /tmp/.overlay_fs
+
+		OVERLAY_LOWERDIR="${LOWERDIR%?}"
+
+		OVERLAY_UPPERDIR="$DRIVER_PATH/rootfs-changes"
+		mkdir -p "$OVERLAY_UPPERDIR"
+
+		OVERLAY_WORK_DIR="$DRIVER_PATH/tmp"
+		mkdir -p "$OVERLAY_WORK_DIR"
+
+		if test "$OVERLAY_LOWERDIR"; then
+			L="$OVERLAY_LOWERDIR"
+			U="$OVERLAY_UPPERDIR"
+			W="$OVERLAY_WORK_DIR"
+
+			if mount -t overlay -o lowerdir="$L",upperdir="$U",workdir="$W" rootfs "$SWITCH_ROOTFS"; then
+				mkdir -p "$SWITCH_ROOTFS$DRIVER_PATH"
+				# FIXME
+				# Still works but I don't like how it works.
+				# mount -o bind,ro "$DRIVER_PATH" "$SWITCH_ROOTFS$DRIVER_PATH"
+			else
+				echo "Unable to run mount -t overlay"
+				echo "Check your /proc/config* for CONFIG_OVERLAY_FS support"
+			fi
+		else
+			echo "No working filesystem found"
+		fi
 	fi
 
 	echo "Uninstall /proc /sys /dev /run"

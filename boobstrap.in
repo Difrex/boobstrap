@@ -514,7 +514,7 @@ exit 0
 		--modules="" \
 		--locales="" \
 		--fonts="" \
-		--themes="starfield" \
+		--themes="" \
 		"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
 		$GRUB_FONT \
 		>/dev/null 2>&1
@@ -820,7 +820,7 @@ rd_gen_init() {
 rd_make_dir() {
 	echo "Creating system directories" | msg -2
 	hi
-	for dir in "/proc" "/sys" "/dev" "/run" "/sbin" "/usr/sbin" "/bin" "/usr/bin"; do
+	for dir in "/proc" "/sys" "/dev" "/run" "/sbin" "/usr/sbin" "/bin" "/usr/bin" "/tmp"; do
 		mkdir -p $1$dir 2>/dev/null
 		CODE="$?"
 		case "$CODE" in
