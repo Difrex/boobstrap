@@ -134,8 +134,8 @@ cheat_sheet() {
 			"boobs.search-rootfs="*) SEARCH_ROOTFS="${1##*=}" ;;
 			"boobs.use-overlayfs") USE_FILESYSTEM="OVERLAY_FS" ;;
 			"boobs.use-shmfs") USE_FILESYSTEM="SHMFS" ;;
-			"boobs.overlay-to-ram") OVERLAY_TO_RAM="yes" ;;
-			"!boobs.overlay-to-ram") OVERLAY_TO_RAM="no" ;;
+			"boobs.copy-to-ram") COPY_TO_RAM="yes" ;;
+			"!boobs.copy-to-ram") COPY_TO_RAM="no" ;;
 			"boobs.overlay-cache="*) OVERLAY_CACHE="${1##*=}" ;;
 		esac
 		shift
@@ -165,8 +165,8 @@ main() {
 		SEARCH_ROOTFS="/system"
 	fi
 
-	if test "$OVERLAY_TO_RAM" = ""; then
-		OVERLAY_TO_RAM="no"
+	if test "$COPY_TO_RAM" = ""; then
+		COPY_TO_RAM="no"
 	fi
 
 	if test "$USE_FILESYSTEM" = ""; then
@@ -182,7 +182,7 @@ main() {
 	fi
 
 	if search_media -t "$SEARCH_ROOTFS" -r "/media"; then
-		if test "$OVERLAY_TO_RAM" = "yes"; then
+		if test "$COPY_TO_RAM" = "yes"; then
 			echo "Start copying system to the RAM drive"
 			mkdir -p "/mnt/toram"
 			mount -t tmpfs -o "size=100%" toram "/mnt/toram"
@@ -199,7 +199,7 @@ main() {
 			umount "/media"
 			echo "Device can be successfully unplugged now"
 		fi
-		if test "$OVERLAY_TO_RAM" = "no"; then
+		if test "$COPY_TO_RAM" = "no"; then
 			if test -b "$SEARCH_ROOTFS"; then
 				ROOT="/media"
 			elif test -d "/media$SEARCH_ROOTFS"; then

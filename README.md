@@ -14,7 +14,7 @@ Boobstrap is a scripts complex for creating bootable GNU/Linux images.
         - [boobs.use-shmfs](#boobs.use-shmfs)
         - [boobs.use-overlayfs](#boobs.use-overlayfs)
         - [boobs.search-rootfs](#boobs.search-rootfs)
-        - [boobs.overlay-to-ram](#boobs.overlay-to-ram)
+        - [boobs.copy-to-ram](#boobs.copy-to-ram)
         - [boobs.overlay-cache](#boobs.overlay-cache)
     - [Utilities](#utilities)
         - [mkbootstrap](#mkbootstrap)
@@ -165,7 +165,7 @@ own overlay with naming "filesystem.squashfs", put in root of your HDD and set t
 boobs.search-rootfs=/filesystem.squashfs
 ```
 
-### boobs.overlay-to-ram
+### boobs.copy-to-ram
 
 Will copy overlays to the RAM before mounting.
 
@@ -508,7 +508,7 @@ linux /boot/vmlinuz boobs.use-overlayfs boobs.search-rootfs=/gentoo.squashfs
 initrd /boot/initrd
 ```
 
-Optional add the `boobs.overlay-to-ram` option for booting to RAM and take out your
+Optional add the `boobs.copy-to-ram` option for booting to RAM and take out your
 storage device.
 
 Thats it. It can be USB storage or something else, you can setup your configuration
