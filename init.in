@@ -78,7 +78,7 @@ search_filesystem() {
 	echo "Filesystem $SEARCH_ROOTFS"
 
 	case "$SEARCH_ROOTFS" in
-		*".cpio")
+		*".cpio"|*".dat")
 			if test "$EXTRACT_PATH"; then
 				use_driver_cpio "$SEARCH_ROOTFS" "$EXTRACT_PATH"
 				CODE="$?"
@@ -131,25 +131,32 @@ use_driver_cpio() {
 cheat_sheet() {
 	while test "$1"; do
 		case "$1" in
-			"boobs.search-rootfs="*) SEARCH_ROOTFS="${1##*=}" ;;
+			"boobs.search-rootfs="*|"root="*) SEARCH_ROOTFS="${1##*=}" ;;
+			"boobs.rootfs-changes="*) ROOTFS_CHANGES="${1##*=}" ;;
 			"boobs.use-overlayfs") USE_FILESYSTEM="OVERLAY_FS" ;;
 			"boobs.use-shmfs") USE_FILESYSTEM="SHMFS" ;;
-			"boobs.copy-to-ram") COPY_TO_RAM="yes" ;;
+			"boobs.copy-to-ram"|"toram") COPY_TO_RAM="yes" ;;
 			"!boobs.copy-to-ram") COPY_TO_RAM="no" ;;
-			"boobs.overlay-cache="*) OVERLAY_CACHE="${1##*=}" ;;
 		esac
 		shift
 	done
 }
 
 main() {
-	echo "Install /proc /sys /dev /run"
+	echo "kernel OK"
+	echo "initrd OK"
 
 	for dir in "/sbin" "/usr/sbin" "/opt/sbin" "/bin" "/usr/bin" "/opt/bin"; do
 		if test -x "$dir/busybox"; then
 			$dir/busybox --install
+			if test "$?" = "0"; then
+				BUSYBOX="yes"
+				echo "busybox OK"
+			fi
 		fi
 	done
+
+	echo "Install /proc /sys /dev /run"
 
 	mount -t proc none /proc
 	echo "0" >/proc/sys/kernel/printk
@@ -173,9 +180,20 @@ main() {
 		USE_FILESYSTEM="SHMFS"
 	fi
 
-	if test -x "$(which mdev)"; then
+	# FIXME
+	# NOT THIS SHIT AGAIN PLEASE
+	echo "Looking up for /sys/block devices..."
+	sleep 10
+
+	if test "$BUSYBOX" = ""; then
+		for nod in "/sys/block/"*; do
+			dev="${nod##*/}"
+			read nod < "$nod/dev"
+			mknod "/dev/$dev" "b" "${nod%:*}" "${nod#*:}" 2>/dev/null
+		done
+	fi
+	if test "$BUSYBOX" = "yes"; then
 		mdev -s
-		sleep 5
 		if test -f "/proc/sys/kernel/hotplug"; then
 			echo "$(which mdev)" > /proc/sys/kernel/hotplug
 		fi
@@ -223,12 +241,11 @@ main() {
 		mkdir -p "$SWITCH_ROOTFS"
 		mount -t tmpfs -o size=100% tmpfs "$SWITCH_ROOTFS"
 
+		# TODO
+		# 1. Using block devices in SHMFS (SWITCH_ROOTFS="$ROOT" if $COPY_TO_RAM = "yes")
+		# 2. Extract rootfs-changes overlay (or device) to SHMFS
 		echo "Searching filesystem"
-		if test -b "$SEARCH_ROOTFS"; then
-			SWITCH_ROOTFS="$ROOT"
-		else
-			search_filesystem -s "$ROOT" -o "$DRIVER_PATH" -x "$SWITCH_ROOTFS"
-		fi
+		search_filesystem -s "$ROOT" -o "$DRIVER_PATH" -x "$SWITCH_ROOTFS"
 		echo "Searching filesystem done"
 	fi
 
@@ -267,11 +284,22 @@ main() {
 			U="$OVERLAY_UPPERDIR"
 			W="$OVERLAY_WORK_DIR"
 
+			if test -b "$ROOTFS_CHANGES"; then
+				case "$ROOTFS_CHANGES" in
+					"/dev/"???*) use_driver_mount "$ROOTFS_CHANGES" "$OVERLAY_UPPERDIR" ;;
+				esac
+			fi
+			if test -f "$ROOTFS_CHANGES"; then
+				case "$ROOTFS_CHANGES" in
+					*".cpio"|*".dat") use_driver_cpio "$ROOTFS_CHANGES" "$OVERLAY_UPPERDIR" ;;
+				esac
+			fi
+
 			if mount -t overlay -o lowerdir="$L",upperdir="$U",workdir="$W" rootfs "$SWITCH_ROOTFS"; then
-				mkdir -p "$SWITCH_ROOTFS$DRIVER_PATH"
 				# FIXME
 				# Still works but I don't like how it works.
-				# mount -o bind,ro "$DRIVER_PATH" "$SWITCH_ROOTFS$DRIVER_PATH"
+				mkdir -p "$SWITCH_ROOTFS$DRIVER_PATH"
+				mount -o bind,ro "$DRIVER_PATH" "$SWITCH_ROOTFS$DRIVER_PATH"
 			else
 				echo "Unable to run mount -t overlay"
 				echo "Check your /proc/config* for CONFIG_OVERLAY_FS support"
@@ -290,7 +318,7 @@ main() {
 
 	if test -x "$SWITCH_ROOTFS/sbin/init"; then
 		echo "Switch root to merged tmpfs"
-		exec switch_root "$SWITCH_ROOTFS" "/sbin/init"
+		exec switch_root "$SWITCH_ROOTFS" "/sbin/init" 2>/dev/null
 	else
 		echo "Where there is a shell, there is a way..."
 		exec sh

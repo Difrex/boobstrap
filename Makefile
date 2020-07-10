@@ -3,7 +3,7 @@ BINDIR = /usr/bin
 ETCDIR = /etc
 SHAREDIR = /usr/share
 
-VERSION = 1.1
+VERSION = 1.2
 NAME = boobstrap
 
 # Packages directory
@@ -31,7 +31,6 @@ install: all
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/exportroot
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/importroot
 	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkoverlayfs
-	ln -sf boobstrap $(DESTDIR)$(BINDIR)/mkbootable
 
 clean:
 	rm -f boobstrap
