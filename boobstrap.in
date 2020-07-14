@@ -368,6 +368,14 @@ exit 0
 			SYSLINUX_BIOS_LDLINUX="$dir/ldlinux.c32"
 		fi
 	done
+	for dir in "/usr/share/syslinux/efi64" "/usr/lib/syslinux/efi64" "$SYSLINUX_PATH"; do
+		if test -f "$dir/syslinux.efi"; then
+			SYSLINUX_UEFI_EFIBOOT="$dir/syslinux.efi"
+		fi
+		if test -f "$dir/ldlinux.e64"; then
+			SYSLINUX_UEFI_LDLINUX="$dir/ldlinux.e64"
+		fi
+	done
 	for dir in "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc" "$GRUB_PATH"; do
 		if test -f "$dir/cdboot.img"; then
 			GRUB_BIOS_CDBOOT="$dir/cdboot.img"
@@ -397,12 +405,21 @@ exit 0
 			mkdir -p "$DIR/boot/syslinux"
 			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
 			case "$TYP" in
-				"dos") SYSLINUX_BIOS_BIOSLOADER="$SYSLINUX_BIOS_MBR" ;;
-				"gpt") SYSLINUX_BIOS_BIOSLOADER="$SYSLINUX_BIOS_GPTMBR" ;;
+				"dos") SYSLINUX_MBR="$SYSLINUX_BIOS_MBR" ;;
+				"gpt") SYSLINUX_MBR="$SYSLINUX_BIOS_GPTMBR" ;;
+				*) SYSLINUX_MBR="$SYSLINUX_BIOS_MBR" ;;
 			esac
-			cat "$SYSLINUX_BIOS_BIOSLOADER" > $DEV
+			cat "$SYSLINUX_MBR" > $DEV
 			extlinux --install "$DIR/boot/syslinux" 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
 			lo
+		fi
+		if test "$LOADER_EFI" = "SYSLINUX"; then
+			echo "Installing syslinux as efi loader" | msg -2 --foreground "Light Blue"
+			mkdir -p "$DIR/boot/syslinux"
+			mkdir -p "$DIR/efi/boot"
+			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
+			cp "$SYSLINUX_UEFI_EFIBOOT" "$DIR/efi/boot/bootx64.efi"
+			cp "$SYSLINUX_UEFI_LDLINUX" "$DIR/efi/boot/"
 		fi
 		if test "$LOADER_LEGACY_BOOT" = "GRUB2"; then
 			echo "Installing grub2 as legacy boot loader" | msg -2 --foreground "Light Blue"
