@@ -272,38 +272,33 @@ exit 0
 
 mkbootisofs() {
 	DIR=""
-	LOADER=""
+	ISO=""
+	LOADER_LEGACY_BOOT=""
+	LOADER_EFI=""
 	KERNEL=""
 	INITRD=""
+	BIOS=""
+	UEFI=""
 	PORTABLE=""
 	BOOTABLE=""
-	BOOTABLE_LEGACY_BOOT=""
-	BOOTABLE_EFI=""
-	ISO=""
 	ISO_9660=""
 	ISO_9660_LABEL=""
 	ISO_9660_RUN=""
-	ISO_9660_LEGACY_BOOT=""
-	ISO_9660_EFI=""
 	STR_OVERLAY=""
 	STR_FORMAT=""
 
 	while test "$1"; do
 		case "$1" in
 			"--output") ISO="$(realpath $2)" ; shift ;;
-			"--loader") LOADER="$2" ; shift ;;
+			"--loader") LOADER_LEGACY_BOOT="$2" ; LOADER_EFI="$2" ; shift ;;
+			"--legacy-boot") LOADER_LEGACY_BOOT="$2" ; shift ;;
+			"--efi") LOADER_EFI="$2" ; shift ;;
 			"--kernel") KERNEL="$2" ; shift ;;
 			"--initrd") INITRD="$2" ; shift ;;
 			"--portable") PORTABLE="yes" ;;
-			"--legacy-boot") BOOTABLE_LEGACY_BOOT="yes" ; ISO_9660_LEGACY_BOOT="yes" ;;
-			"--efi") ISO_9660_EFI="yes" ; ISO_9660_EFI="yes" ;;
 			"--bootable") BOOTABLE="yes" ;;
-			"--bootable-legacy-boot") BOOTABLE_LEGACY_BOOT="yes" ;;
-			"--bootable-efi") BOOTABLE_EFI="yes" ;;
 			"--iso-9660") ISO_9660="yes" ;;
 			"--iso-9660-label") ISO_9660_LABEL="$2" ; shift ;;
-			"--iso-9660-legacy-boot") ISO_9660_LEGACY_BOOT="yes" ;;
-			"--iso-9660-efi") ISO_9660_EFI="yes" ;;
 			"--overlay") STR_OVERLAY="$STR_OVERLAY --overlay $2" ; shift ;;
 			"--cpio") STR_FORMAT="--format cpio" ;;
 			"--squashfs") STR_FORMAT="--format squashfs" ;;
@@ -355,109 +350,80 @@ exit 0
 			ISO_9660_RUN="xorrisofs"
 		fi
 		if test "$ISO_9660_RUN" = ""; then
-			echo "None of cdrkit or xorriso found." | msg -2 --foreground "Brown"
+			echo "None of cdrkit, xorriso/xorrisofs or mkisofs found" | msg -2 --foreground "Brown"
 			return 1
 		fi
 	fi
-	for dir in "$SYSLINUX_PATH" "/usr/share/syslinux" "/usr/lib/syslinux/bios"; do
-		if test -f "$dir/gptmbr.bin"; then
-			SYSLINUX_DATA="$(($SYSLINUX_DATA + 1))"
-			SYSLINUX_BIOS_GPT="$dir/gptmbr.bin"
-		fi
+	for dir in "/usr/share/syslinux" "/usr/lib/syslinux/bios" "$SYSLINUX_PATH"; do
 		if test -f "$dir/mbr.bin"; then
-			SYSLINUX_DATA="$(($SYSLINUX_DATA + 1))"
 			SYSLINUX_BIOS_MBR="$dir/mbr.bin"
 		fi
+		if test -f "$dir/gptmbr.bin"; then
+			SYSLINUX_BIOS_GPTMBR="$dir/gptmbr.bin"
+		fi
+		if test -f "$dir/isolinux.bin"; then
+			SYSLINUX_BIOS_ISOLINUX="$dir/isolinux.bin"
+		fi
+		if test -f "$dir/ldlinux.c32"; then
+			SYSLINUX_BIOS_LDLINUX="$dir/ldlinux.c32"
+		fi
 	done
-	for dir in "$GRUB_PATH" "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc"; do
+	for dir in "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc" "$GRUB_PATH"; do
 		if test -f "$dir/cdboot.img"; then
-			GRUB_DATA="$(($GRUB_DATA + 1))"
 			GRUB_BIOS_CDBOOT="$dir/cdboot.img"
 		fi
-		if test -f "$dir/boot_hybrid.img"; then
-			GRUB_DATA="$(($GRUB_DATA + 1))"
-			GRUB_BIOS_HYBRID="$dir/boot_hybrid.img"
-		fi
 	done
-	if test "$LOADER" = ""; then
-		if test "$SYSLINUX_DATA" = "2"; then
-			LOADER="SYSLINUX"
-		fi
-		if test "$GRUB_DATA" = "2"; then
-			LOADER="GRUB2"
-		fi
-		if test "$LOADER" = ""; then
-			echo "None of syslinux or grub2 found." | msg -2 --foreground "Brown"
-			return 1
-		fi
-	fi
-	if test "$LOADER" = "SYSLINUX"; then
-		if test "$SYSLINUX_DATA" = "2"; then
-			LOADER="SYSLINUX"
-		else
-			echo "Can't find SYSLINUX files, try export SYSLINUX_PATH=/usr/lib/syslinux or something" | msg -2 --foreground "Brown"
-			return 1
-		fi
-	fi
-	if test "$LOADER" = "GRUB2"; then
-		if test "$GRUB_DATA" = "2"; then
-			LOADER="GRUB2"
-		else
-			echo "Can't find GRUB2 files, try export GRUB_PATH=/usr/lib/grub or something" | msg -2 --foreground "Brown"
-			return 1
-		fi
-	fi
+	case "$LOADER_LEGACY_BOOT" in
+		"grub2"|"GRUB2") LOADER_LEGACY_BOOT="GRUB2" ;;
+		"syslinux"|"SYSLINUX") LOADER_LEGACY_BOOT="SYSLINUX" ;;
+		*) echo "Unknown legacy boot loader: $LOADER_LEGACY_BOOT" | msg -2 --foreground "Brown" ; return 1 ;;
+	esac
+	case "$LOADER_EFI" in
+		"grub2"|"GRUB2") LOADER_EFI="GRUB2" ;;
+		"syslinux"|"SYSLINUX") LOADER_EFI="SYSLINUX" ;;
+		*) echo "Unknown efi loader: $LOADER_LEGACY_BOOT" | msg -2 --foreground "Brown" ; return 1 ;;
+	esac
 	echo "Creating bootable filesystem [$DIR]" | msg -2
 	hi
-	if test "$LOADER" = "SYSLINUX"; then
-		if test -f "$DIR/boot/syslinux/syslinux.cfg"; then
-			echo "Keep SYSLINUX config" | msg -2 --foreground "Purple"
-		elif test -f "/etc/boobstrap/syslinux.conf"; then
-			mkdir -p "$DIR/boot/syslinux"
-			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
-			echo "Configure SYSLINUX" | msg -2 --foreground "Purple"
-		else
-			echo "Failed to configure SYSLINUX" | msg -2 --foreground "Brown"
-		fi
-	fi
-	if test "$LOADER" = "GRUB2"; then
-		if test -f "$DIR/boot/grub/grub.cfg"; then
-			echo "Keep GRUB2 config" | msg -2 --foreground "Purple"
-		elif test -f "/etc/boobstrap/grub.conf"; then
-			mkdir -p "$DIR/boot/grub"
-			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
-			echo "Configure GRUB2" | msg -2 --foreground "Purple"
-		else
-			echo "Failed to configure GRUB2" | msg -2 --foreground "Brown"
-		fi
-	fi
 	if test "$BOOTABLE" = "yes"; then
 		DEV="$(df $DIR | tail -n 1 | tr -s " " | cut -d " " -f 1 | sed -r "s:[0-9]+\$::" | sed -r "s:([0-9])[a-z]+\$:\\1:i")"
 		TYP="$(fdisk -l $DEV | grep Disklabel\ type: | cut -d " " -f 3)"
 		echo "Creating bootable device [$DEV]" | msg -2
 		hi
-		if test "$LOADER" = "SYSLINUX"; then
-			echo "Installing SYSLINUX" | msg -2 --foreground "Light Blue"
+		if test "$LOADER_LEGACY_BOOT" = "SYSLINUX"; then
+			echo "Installing syslinux as legacy boot loader" | msg -2 --foreground "Light Blue"
+			hi
+			echo "syslinux says:" | msg -2 --foreground "Light Blue"
+			mkdir -p "$DIR/boot/syslinux"
+			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
 			case "$TYP" in
 				"dos") SYSLINUX_BIOS_BIOSLOADER="$SYSLINUX_BIOS_MBR" ;;
-				"gpt") SYSLINUX_BIOS_BIOSLOADER="$SYSLINUX_BIOS_GPT" ;;
+				"gpt") SYSLINUX_BIOS_BIOSLOADER="$SYSLINUX_BIOS_GPTMBR" ;;
 			esac
 			cat "$SYSLINUX_BIOS_BIOSLOADER" > $DEV
-			hi
-			echo "SYSLINUX says:" | msg -2 --foreground "Light Blue"
 			extlinux --install "$DIR/boot/syslinux" 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
 			lo
 		fi
-		if test "$LOADER" = "GRUB2"; then
-			echo "Installing GRUB2" | msg -2 --foreground "Light Blue"
+		if test "$LOADER_LEGACY_BOOT" = "GRUB2"; then
+			echo "Installing grub2 as legacy boot loader" | msg -2 --foreground "Light Blue"
 			hi
-			echo "GRUB2 says:" | msg -2 --foreground "Light Blue"
+			echo "grub2 says:" | msg -2 --foreground "Light Blue"
+			mkdir -p "$DIR/boot/grub"
+			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
 			grub-install				\
 				--boot-directory="$DIR/boot"	\
 				--target="x86_64-efi"		\
 				--removable			\
 				--efi-directory="$DIR"		\
 				--recheck 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
+			lo
+		fi
+		if test "$LOADER_EFI" = "GRUB2"; then
+			echo "Installing grub2 as efi loader" | msg -2 --foreground "Light Blue"
+			hi
+			echo "grub2 says:" | msg -2 --foreground "Light Blue"
+			mkdir -p "$DIR/boot/grub"
+			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
 			grub-install "$DEV"			\
 				--boot-directory="$DIR/boot"	\
 				--target="i386-pc"		\
@@ -474,73 +440,87 @@ exit 0
 		if test "$ISO" = ""; then
 			ISO="-"
 		fi
-		echo "Burning ISO [$ISO]" | msg -2
+		echo "Burning [$ISO]" | msg -2
 		hi
-		#if test "$LOADER" = "SYSLINUX"; then
-		#fi
-		if test "$LOADER" = "GRUB2"; then
-			if test "$ISO_9660_LEGACY_BOOT" = "yes"; then
-				ISO_9660_LEGACY_BOOT="-b boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table"
-				grub-mkstandalone \
-					--format="i386-pc" \
-					--output="$DIR/boot/grub/grub.raw" \
-					--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-					--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-					--locales="" \
-					--fonts="" \
-					--themes="" \
-					"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
-				cat "$GRUB_BIOS_CDBOOT" "$DIR/boot/grub/grub.raw" > $DIR/boot/grub/bios.img
-			fi
-			if test "$ISO_9660_EFI" = "yes"; then
-				ISO_9660_EFI="-eltorito-alt-boot -e boot/grub/uefi.img -no-emul-boot"
-				grub-mkstandalone \
-					--format="x86_64-efi" \
-					--output="$DIR/boot/grub/grub.efi" \
-					--modules="" \
-					--locales="" \
-					--fonts="" \
-					--themes="" \
-					"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
-				truncate -s "10MB" "$DIR/boot/grub/uefi.img"
-				mkdosfs "$DIR/boot/grub/uefi.img"
-				mkdir "$DIR/uefi"
-				mount "$DIR/boot/grub/uefi.img" "$DIR/uefi"
-				mkdir "$DIR/uefi/EFI"
-				mkdir "$DIR/uefi/EFI/BOOT"
-				cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI"
-				umount "$DIR/uefi"
-				rmdir "$DIR/uefi"
-			fi
+		if test "$LOADER_LEGACY_BOOT" = "SYSLINUX"; then
+			ISO_9660_LEGACY_BOOT="-b boot/syslinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table"
+			mkdir -p "$DIR/boot/syslinux"
+			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
+			for bin in $SYSLINUX_BIOS_ISOLINUX $SYSLINUX_BIOS_LDLINUX; do
+				cp "$bin" "$DIR/boot/syslinux"
+			done
+		fi
+		if test "$LOADER_EFI" = "SYSLINUX"; then
+			ISO_9660_EFI=""
+			echo "syslinux doesn't support EFI-mode for ISO" | msg -2 --foreground "Light Blue"
+		fi
+		if test "$LOADER_LEGACY_BOOT" = "GRUB2"; then
+			ISO_9660_LEGACY_BOOT="-b boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table"
+			mkdir -p "$DIR/boot/grub"
+			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
+			grub-mkstandalone \
+				--format="i386-pc" \
+				--output="$DIR/boot/grub/grub.raw" \
+				--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+				--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+				--locales="" \
+				--fonts="" \
+				--themes="" \
+				"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
+			cat "$GRUB_BIOS_CDBOOT" "$DIR/boot/grub/grub.raw" > $DIR/boot/grub/bios.img
+		fi
+		if test "$LOADER_EFI" = "GRUB2"; then
+			ISO_9660_EFI="-eltorito-alt-boot -e boot/grub/uefi.img -no-emul-boot"
+			mkdir -p "$DIR/boot/grub"
+			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
+			grub-mkstandalone \
+				--format="x86_64-efi" \
+				--output="$DIR/boot/grub/grub.efi" \
+				--modules="" \
+				--locales="" \
+				--fonts="" \
+				--themes="" \
+				"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
+			truncate -s "10MB" "$DIR/boot/grub/uefi.img"
+			mkdosfs "$DIR/boot/grub/uefi.img" 1>/dev/null
+			mkdir "$DIR/uefi"
+			mount "$DIR/boot/grub/uefi.img" "$DIR/uefi"
+			mkdir "$DIR/uefi/EFI"
+			mkdir "$DIR/uefi/EFI/BOOT"
+			cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI"
+			umount "$DIR/uefi"
+			rmdir "$DIR/uefi"
 		fi
 		if test "$ISO_9660_RUN" = "genisoimage"; then
+			echo "Creating iso image using genisoimage" | msg -2 --foreground "Light Blue"
+			hi
+			echo "genisoimage quote:" | msg -2 --foreground "Light Blue"
 			genisoimage -v -J -r -V "$ISO_9660_LABEL" -A "$ISO_9660_LABEL" \
 				$ISO_9660_LEGACY_BOOT \
-				-o "$ISO" "$DIR"
+				$ISO_9660_EFI \
+				-o "$ISO" "$DIR" 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
+			lo
 			CODE="$?"
-			if test "$LOADER" = "SYSLINUX"; then
-				if test -f "$ISO"; then
-					if test "$ISO_9660_EFI"; then
-						isohybrid --uefi "$ISO"
-					else
-						isohybrid "$ISO"
-					fi
-				fi
-			fi
 		fi
 		if test "$ISO_9660_RUN" = "xorrisofs"; then
+			echo "Creating iso image using xorrisofs" | msg -2 --foreground "Light Blue"
+			hi
+			echo "xorrisofs quote:" | msg -2 --foreground "Light Blue"
 			xorrisofs -v -J -r -V "$ISO_9660_LABEL" -A "$ISO_9660_LABEL" \
 				$ISO_9660_LEGACY_BOOT \
 				$ISO_9660_EFI \
-				-o "$ISO" "$DIR"
+				-o "$ISO" "$DIR" 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
 			CODE="$?"
+			lo
 		fi
-		case "$CODE" in
-			"0") echo "Success" | msg -2 --foreground "Light Green" ;;
-			*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
-		esac
+		if test "$CODE"; then
+			case "$CODE" in
+				"0") echo "Success" | msg -2 --foreground "Light Green" ;;
+				*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
+			esac
+		fi
 		lo
-		echo "Done ISO [$ISO]" | msg -2
+		echo "Done [$ISO]" | msg -2
 	fi
 	lo
 	echo "Done [$DIR]" | msg -2
