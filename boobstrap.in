@@ -289,7 +289,7 @@ mkbootisofs() {
 
 	while test "$1"; do
 		case "$1" in
-			"--output") ISO="$(realpath $2)" ; shift ;;
+			"--output") ISO="$(realpath $2)" ; ISO_9660="yes" ; shift ;;
 			"--loader") LOADER_LEGACY_BOOT="$2" ; LOADER_EFI="$2" ; shift ;;
 			"--legacy-boot") LOADER_LEGACY_BOOT="$2" ; shift ;;
 			"--efi") LOADER_EFI="$2" ; shift ;;
@@ -331,8 +331,6 @@ exit 0
 				elif test "$ISO" = ""; then
 					ISO="$(realpath $1)"
 					ISO_9660="yes"
-					ISO_9660_LEGACY_BOOT="yes"
-					ISO_9660_EFI="yes"
 				fi
 				;;
 		esac

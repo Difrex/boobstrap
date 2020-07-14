@@ -22,7 +22,7 @@ crux_gnulinux() {
 											\
 		--overlay "$DIR/bootstrap"						\
 											\
-		--format "cpio"								\
+		--cpio --legacy-boot "syslinux" --efi "grub2"				\
 											\
 		--output "$DIR/install.iso"
 }
