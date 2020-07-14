@@ -425,11 +425,9 @@ exit 0
 			echo "grub2 says:" | msg -2 --foreground "Light Blue"
 			mkdir -p "$DIR/boot/grub"
 			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
-			grub-install				\
+			grub-install "$DEV"			\
 				--boot-directory="$DIR/boot"	\
-				--target="x86_64-efi"		\
-				--removable			\
-				--efi-directory="$DIR"		\
+				--target="i386-pc"		\
 				--recheck 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
 			lo
 		fi
@@ -439,9 +437,11 @@ exit 0
 			echo "grub2 says:" | msg -2 --foreground "Light Blue"
 			mkdir -p "$DIR/boot/grub"
 			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
-			grub-install "$DEV"			\
+			grub-install				\
 				--boot-directory="$DIR/boot"	\
-				--target="i386-pc"		\
+				--target="x86_64-efi"		\
+				--removable			\
+				--efi-directory="$DIR"		\
 				--recheck 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
 			lo
 		fi
