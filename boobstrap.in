@@ -48,74 +48,80 @@ exit 0
 	esac
 }
 
-mkoverlayfs() {
+mkoverlay() {
+	DESTINATION=""
 	OVERLAY=""
-	IMAGE=""
 	FORMAT=""
+	NUM=0
 
 	while test "$1"; do
 		case "$1" in
-			"--output") IMAGE="$(realpath $2)" ; shift ;;
+			"--destination") DESTINATION="$(realpath $2)" ; shift ;;
+			"--overlay") OVERLAY="$OVERLAY $(realpath $2)" ; shift ;;
 			"--format") FORMAT="$2" ; shift ;;
-			"--cpio") FORMAT="cpio" ;;
-			"--squashfs") FORMAT="squashfs" ;;
-			"--squashfs-xz") FORMAT="squashfs-xz" ;;
 			"--help"|"-h")
 				cat <<EOF
 $BOOBSTRAP_NAME $BOOBSTRAP_VERSION
 Usage: mkoverlayfs <directory> [options]...
 Creates filesystem from the directory by using selected format.
 
-  --output <file>            specify output file
+  --destination <directory>  specify directory to save system
+
+  --overlay <directory>
 
   --format                   select filesystem format, can be one of:
-                               cpio
-                               squashfs
-                               squashfs-xz
-
-  --cpio,                    aliases for the --format
-  --squashfs,
-  --squashfs-xz
+                               cpio, squashfs, squashfs-gzip, squashfs-lz???
+                               squashfs-bzip2, squashfs-xz, squashfs-zstd
 EOF
 exit 0
-				;;
-			*)
-				if test "$OVERLAY" = ""; then
-					OVERLAY="$1"
-				fi
 				;;
 		esac
 		shift
 	done
-
-	if test "$IMAGE" = ""; then
-		echo "No image output specified" | msg -2 --foreground "Brown"
+	if test "$DESTINATION" = ""; then
+		echo "No destination directory specified" | msg -2 --foreground "Brown"
 		return 1
 	fi
-
+	echo "Prepare overlays" | msg -2
+	mkdir -p "$DESTINATION"
+	hi
 	if test "$FORMAT" = ""; then
-		echo "No format output specified, fallback to using directory" | msg -2 --foreground "Brown"
+		FORMAT="cpio"
+		echo "No overlay format specified, fallback to using CPIO" | msg -2 --foreground "Brown"
 	fi
-
-	case "$FORMAT" in
-		"cpio")
-			ofs_mk_cpio "$OVERLAY" "$IMAGE.cpio"
-			CODE="$?"
-			;;
-		"squashfs")
-			ofs_mk_squashfs "$OVERLAY" "$IMAGE.squashfs"
-			CODE="$?"
-			;;
-		"squashfs-xz")
-			ofs_mk_squashfs_xz "$OVERLAY" "$IMAGE.squashfs"
-			CODE="$?"
-			;;
-		*)
-			CODE="1"
-			echo "Unknown filesystem format" | msg -2 --foreground "Brown"
-			;;
-	esac
-
+	for overlay in $OVERLAY; do
+		NUM="$(($NUM + 10))"
+		case "$FORMAT" in
+			"cpio")
+				SOURCE="$overlay"
+				TARGET="$DESTINATION/$NUM-$(basename $overlay).cpio"
+				echo "CPIO [$SOURCE] => [$TARGET]" | msg -2 --foreground "Light Blue"
+				cd "$SOURCE"
+				find . -print0 | cpio --create --format "newc" --null --quiet >"$TARGET" 2>/dev/null
+				CODE="$?"
+				cd "$OLDPWD"
+				;;
+			"squashfs"|"squashfs-"*)
+				SOURCE="$overlay"
+				TARGET="$DESTINATION/$NUM-$(basename $overlay).squashfs"
+				echo "SquashFS [$SOURCE] => [$TARGET]" | msg -2 --foreground "Light Blue"
+				mksquashfs "$SOURCE" "$TARGET" -quiet 1>/dev/null
+				CODE="$?"
+				;;
+			*)
+				CODE="1"
+				echo "Unknown filesystem format" | msg -2 --foreground "Brown"
+				;;
+		esac
+		hi
+		case "$CODE" in
+			"0") echo "Success" | msg -2 --foreground "Light Green" ;;
+			*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
+		esac
+		lo
+	done
+	lo
+	echo "Overlays done" | msg -2
 	return "$CODE"
 }
 
@@ -123,19 +129,17 @@ mkinitramfs() {
 	DIR=""
 	OUTPUT=""
 	IS_STANDALONE=""
-	IS_OVERLAY=""
-	OVERLAYS=""
-	FORMAT=""
+	STR_OVERLAY=""
+	STR_FORMAT=""
 
 	while test "$1"; do
 		case "$1" in
 			"--output") OUTPUT="$(realpath $2)" ; shift ;;
 			"--standalone") IS_STANDALONE="yes" ;;
-			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
-			"--format") FORMAT="$2" ; shift ;;
-			"--cpio") FORMAT="cpio" ;;
-			"--squashfs") FORMAT="squashfs" ;;
-			"--squashfs-xz") FORMAT="squashfs-xz" ;;
+			"--overlay") STR_OVERLAY="$STR_OVERLAY --overlay $2" ; shift ;;
+			"--cpio") STR_FORMAT="--format cpio" ;;
+			"--squashfs") STR_FORMAT="--format squashfs" ;;
+			"--squashfs-xz") STR_FORMAT="--format squashfs-xz" ;;
 			"--help"|"-h")
 				cat <<EOF
 $BOOBSTRAP_NAME $BOOBSTRAP_VERSION
@@ -169,16 +173,66 @@ exit 0
 		echo "Directory not selected" | msg -2 --foreground "Brown"
 		return 1
 	fi
-	if test "$FORMAT" = ""; then
-		FORMAT="directory"
-	fi
 	echo "Generating initramfs [$DIR]" | msg -2
 	hi
 	if test "$IS_STANDALONE" = ""; then
-		rd_make_dir "$DIR"
-		rd_copy_dev "$DIR"
-		rd_copy_bin "$DIR"
-		rd_gen_init "$DIR"
+		echo "Creating system directories" | msg -2
+		hi
+		for dir in "/proc" "/sys" "/dev" "/run" "/sbin" "/bin" "/etc" "/usr/sbin" "/usr/bin" "/mnt" "/tmp"; do
+			mkdir -p $DIR$dir 2>/dev/null
+			case "$?" in
+				"0") echo "$dir" | msg -2 --foreground "Light Blue" ;;
+				*) echo "$dir" | msg -2 --foreground "Light Red" --highlight ;;
+			esac
+		done
+		lo
+		echo "Copying devices" | msg -2
+		hi
+		for dev in "console" "tty" "tty1" "null"; do
+			cp -a "/dev/$dev" "$DIR/dev/$dev" 2>/dev/null
+			case "$?" in
+				"0") echo "/dev/$dev" | msg -2 --foreground "Light Blue" ;;
+				*) echo "/dev/$dev" | msg -2 --foreground "Light Red" --highlight ;;
+			esac
+		done
+		lo
+		echo "Copying system files" | msg -2
+		hi
+		for bin in $SYSTEMWIDE_BINARIES; do
+			which "$bin" 1>/dev/null 2>/dev/null
+			CODE="$?"
+			case "$CODE" in
+				"0") echo "$bin" | msg -2 --foreground "Light Blue" ;;
+				*) echo "$bin" | msg -2 --foreground "Light Red" --highlight ;;
+			esac
+			deps=""
+			for dep in $(lddtree $(which $bin 2>/dev/null)); do
+				deps="$deps $dep"
+				if test -f "$DIR$dep"; then
+					continue
+				fi
+				install -D "$dep" "$DIR$dep" 2>/dev/null
+				CODE="$?"
+			done
+			hi
+			for dep in $(echo $deps | tr ' ' '\n' | sort | uniq | tr '\n' ' '); do
+				case "$CODE" in
+					"0") echo "$dep" | msg -2 --foreground "Purple" ;;
+					*) echo "$dep" | msg -2 --foreground "Light Red" --highlight ;;
+				esac
+			done
+			lo
+		done
+		lo
+		echo "Creating init" | msg -2
+		hi
+		echo "/init" | msg -2 --foreground "Light Blue"
+		initramfs_init "$DIR/init"
+		case "$?" in
+			"0") ;;
+			*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
+		esac
+		lo
 	fi
 	if test "$IS_STANDALONE" = "yes"; then
 		if test -a "$DIR/init"; then
@@ -189,28 +243,8 @@ exit 0
 			chmod +x "$DIR/init"
 		fi
 	fi
-	if test "$IS_OVERLAY" = "yes"; then
-		NUM=0
-		echo "Prepare overlays" | msg -2
-		mkdir -p "$DIR/media/system" 2>/dev/null
-		hi
-		for overlay in $OVERLAYS; do
-			NUM="$(($NUM + 10))"
-			SOURCE="$overlay"
-			TARGET="$DIR/media/system/$NUM-$(basename $overlay)"
-			mkoverlayfs "$SOURCE" \
-				--output "$TARGET" \
-				--format "$FORMAT"
-			CODE="$?"
-			hi
-			case "$CODE" in
-				"0") echo "Success" | msg -2 --foreground "Light Green" ;;
-				*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
-			esac
-			lo
-		done
-		lo
-		echo "Overlays done" | msg -2
+	if test "$STR_OVERLAY"; then
+		mkoverlay --destination "$DIR/media/system" $STR_OVERLAY $STR_FORMAT
 	fi
 	echo "Creating initramfs [$OUTPUT]" | msg -2
 	cd "$DIR" 2>/dev/null
@@ -238,28 +272,46 @@ exit 0
 
 mkbootisofs() {
 	DIR=""
-	OUTPUT=""
-	IS_OVERLAY=""
-	OVERLAYS=""
-	FORMAT=""
+	LOADER=""
+	KERNEL=""
+	INITRD=""
 	PORTABLE=""
 	BOOTABLE=""
+	BOOTABLE_LEGACY_BOOT=""
+	BOOTABLE_EFI=""
+	ISO=""
 	ISO_9660=""
+	ISO_9660_LABEL=""
+	ISO_9660_RUN=""
+	ISO_9660_LEGACY_BOOT=""
+	ISO_9660_EFI=""
+	STR_OVERLAY=""
+	STR_FORMAT=""
 
 	while test "$1"; do
 		case "$1" in
-			"--output") ISO_9660="yes" ; OUTPUT="$(realpath $2)" ; shift ;;
+			"--output") ISO="$(realpath $2)" ; shift ;;
+			"--loader") LOADER="$2" ; shift ;;
+			"--kernel") KERNEL="$2" ; shift ;;
+			"--initrd") INITRD="$2" ; shift ;;
 			"--portable") PORTABLE="yes" ;;
+			"--legacy-boot") BOOTABLE_LEGACY_BOOT="yes" ; ISO_9660_LEGACY_BOOT="yes" ;;
+			"--efi") ISO_9660_EFI="yes" ; ISO_9660_EFI="yes" ;;
 			"--bootable") BOOTABLE="yes" ;;
+			"--bootable-legacy-boot") BOOTABLE_LEGACY_BOOT="yes" ;;
+			"--bootable-efi") BOOTABLE_EFI="yes" ;;
 			"--iso-9660") ISO_9660="yes" ;;
-			"--overlay") IS_OVERLAY="yes" ; OVERLAYS="$OVERLAYS $2" ; shift ;;
-			"--cpio") FORMAT="cpio" ;;
-			"--squashfs") FORMAT="squashfs" ;;
-			"--squashfs-xz") FORMAT="squashfs-xz" ;;
+			"--iso-9660-label") ISO_9660_LABEL="$2" ; shift ;;
+			"--iso-9660-legacy-boot") ISO_9660_LEGACY_BOOT="yes" ;;
+			"--iso-9660-efi") ISO_9660_EFI="yes" ;;
+			"--overlay") STR_OVERLAY="$STR_OVERLAY --overlay $2" ; shift ;;
+			"--cpio") STR_FORMAT="--format cpio" ;;
+			"--squashfs") STR_FORMAT="--format squashfs" ;;
+			"--squashfs-xz") STR_FORMAT="--format squashfs-xz" ;;
 			"--help")
 				cat <<EOF
 $BOOBSTRAP_NAME $BOOBSTRAP_VERSION
-Usage: mkbootisofs <directory> [options]...
+Usage: mkbootisofs <directory> [BOOT.ISO] [options]...
 Creates BIOS and/or UEFI compatible bootable images.
 
   --output < file | device | - >
@@ -277,232 +329,219 @@ Creates BIOS and/or UEFI compatible bootable images.
 EOF
 exit 0
 				;;
+			"-"*) echo "Unknown option: $1" | msg -2 ;;
 			*)
 				if test "$DIR" = ""; then
-					DIR="$1"
+					DIR="$(realpath $1)"
+				elif test "$ISO" = ""; then
+					ISO="$(realpath $1)"
+					ISO_9660="yes"
+					ISO_9660_LEGACY_BOOT="yes"
+					ISO_9660_EFI="yes"
 				fi
 				;;
 		esac
 		shift
 	done
-	for dir in "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc"; do
-		if test -f "$dir/cdboot.img"; then
-			GRUB_i386_CDBOOT="$dir/cdboot.img"
+	if test "$DIR" = ""; then
+		echo "No working directory selected" | msg -2 --foreground "Brown"
+		return 1
+	fi
+	if test "$ISO_9660" = "yes"; then
+		if genisoimage --version 1>/dev/null 2>/dev/null; then
+			ISO_9660_RUN="genisoimage"
 		fi
-		if test -f "$dir/boot_hybrid.img"; then
-			GRUB_i386_HYBRID="$dir/boot_hybrid.img"
+		if xorrisofs --version 1>/dev/null 2>/dev/null; then
+			ISO_9660_RUN="xorrisofs"
+		fi
+		if test "$ISO_9660_RUN" = ""; then
+			echo "None of cdrkit or xorriso found." | msg -2 --foreground "Brown"
+			return 1
+		fi
+	fi
+	for dir in "$SYSLINUX_PATH" "/usr/share/syslinux" "/usr/lib/syslinux/bios"; do
+		if test -f "$dir/gptmbr.bin"; then
+			SYSLINUX_DATA="$(($SYSLINUX_DATA + 1))"
+			SYSLINUX_BIOS_GPT="$dir/gptmbr.bin"
+		fi
+		if test -f "$dir/mbr.bin"; then
+			SYSLINUX_DATA="$(($SYSLINUX_DATA + 1))"
+			SYSLINUX_BIOS_MBR="$dir/mbr.bin"
 		fi
 	done
-	if test "$GRUB_i386_CDBOOT" = ""; then
-		echo "cdboot.img none found. install grub-pc-bin or something." | msg -2
-		echo "or specify file: export GRUB_i386_CDBOOT=./cdboot.img" | msg -2
-		return 1
+	for dir in "$GRUB_PATH" "/usr/lib/grub/i386-pc" "/lib/grub/i386-pc"; do
+		if test -f "$dir/cdboot.img"; then
+			GRUB_DATA="$(($GRUB_DATA + 1))"
+			GRUB_BIOS_CDBOOT="$dir/cdboot.img"
+		fi
+		if test -f "$dir/boot_hybrid.img"; then
+			GRUB_DATA="$(($GRUB_DATA + 1))"
+			GRUB_BIOS_HYBRID="$dir/boot_hybrid.img"
+		fi
+	done
+	if test "$LOADER" = ""; then
+		if test "$SYSLINUX_DATA" = "2"; then
+			LOADER="SYSLINUX"
+		fi
+		if test "$GRUB_DATA" = "2"; then
+			LOADER="GRUB2"
+		fi
+		if test "$LOADER" = ""; then
+			echo "None of syslinux or grub2 found." | msg -2 --foreground "Brown"
+			return 1
+		fi
 	fi
-
-	if test "$GRUB_i386_HYBRID" = ""; then
-		echo "boot_hybrid.img none found. install grub-pc-bin or something." | msg -2
-		echo "or specify file: export GRUB_i386_HYBRID=./boot_hybrid.img" | msg -2
-		return 1
+	if test "$LOADER" = "SYSLINUX"; then
+		if test "$SYSLINUX_DATA" = "2"; then
+			LOADER="SYSLINUX"
+		else
+			echo "Can't find SYSLINUX files, try export SYSLINUX_PATH=/usr/lib/syslinux or something" | msg -2 --foreground "Brown"
+			return 1
+		fi
 	fi
-	if test "$FORMAT" = ""; then
-		FORMAT="cpio"
+	if test "$LOADER" = "GRUB2"; then
+		if test "$GRUB_DATA" = "2"; then
+			LOADER="GRUB2"
+		else
+			echo "Can't find GRUB2 files, try export GRUB_PATH=/usr/lib/grub or something" | msg -2 --foreground "Brown"
+			return 1
+		fi
 	fi
 	echo "Creating bootable filesystem [$DIR]" | msg -2
 	hi
-
-		if test "$IS_OVERLAY" = "yes"; then
-			NUM=0
-			echo "Prepare overlays" | msg -2
-			mkdir -p "$DIR/system"
-			hi
-			for overlay in $OVERLAYS; do
-				NUM="$(($NUM + 10))"
-				SOURCE="$overlay"
-				TARGET="$DIR/system/$NUM-$(basename $overlay)"
-				mkoverlayfs "$SOURCE" \
-					--output "$TARGET" \
-					--format "$FORMAT"
-				CODE="$?"
-				hi
-				case "$CODE" in
-					"0") echo "Success" | msg -2 --foreground "Light Green" ;;
-					*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
-				esac
-				lo
-			done
-			lo
-			echo "Overlays done" | msg -2
+	if test "$LOADER" = "SYSLINUX"; then
+		if test -f "$DIR/boot/syslinux/syslinux.cfg"; then
+			echo "Keep SYSLINUX config" | msg -2 --foreground "Purple"
+		elif test -f "/etc/boobstrap/syslinux.conf"; then
+			mkdir -p "$DIR/boot/syslinux"
+			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
+			echo "Configure SYSLINUX" | msg -2 --foreground "Purple"
+		else
+			echo "Failed to configure SYSLINUX" | msg -2 --foreground "Brown"
 		fi
-
-	if test -f "$DIR/boot/grub.cfg"; then
-		echo "Keep pre-installed configuration" | msg -2 --foreground "Purple"
-	elif bootloader_conf >/dev/null 2>&1; then
-		echo "Writing grub configuration" | msg -2 --foreground "Purple"
-		mkdir -p "$DIR/boot/grub" 2>/dev/null
-		bootloader_conf 2>/dev/null >> "$DIR/boot/grub/grub.cfg"
-		bootloader_menu 2>/dev/null >> "$DIR/boot/grub/grub.cfg"
-	else
-		echo "Bootloader configuration failed to install" | msg -2 --foreground "Brown"
 	fi
-
-		echo "Generate BIOS bootloader" | msg -2 --foreground "Purple"
-		hi
-
-		grub-mkstandalone \
-			--format="i386-pc" \
-			--output="$DIR/boot/grub/grub.raw" \
-			--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-			--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
-			--locales="" \
-			--fonts="" \
-			--themes="" \
-			"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-			>/dev/null 2>&1
-
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-
-		echo "Copying BIOS bootloader" | msg -2 --foreground "Purple"
-		hi
-
-		cat "$GRUB_i386_CDBOOT" "$DIR/boot/grub/grub.raw" > "$DIR/boot/grub/bios.img" 2>/dev/null
-
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-
-		echo "Generate UEFI bootloader" | msg -2 --foreground "Purple"
-		hi
-
-		grub-mkstandalone \
-			--format="x86_64-efi" \
-			--output="$DIR/boot/grub/grub.efi" \
-			--modules="" \
-			--locales="" \
-			--fonts="" \
-			--themes="" \
-			"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg" \
-			>/dev/null 2>&1
-
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-
-		echo "Creating UEFI (FAT32) partition" | msg -2 --foreground "Purple"
-		hi
-
-		echo "Writing empty partition" | msg -2 --foreground "Purple"
-		hi
-		truncate -s "10MB" "$DIR/boot/grub/uefi.img" 2>/dev/null
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-
-		echo "Formatting empty partition to FAT32" | msg -2 --foreground "Purple"
-		hi
-		mkdosfs "$DIR/boot/grub/uefi.img" 1>/dev/null 2>/dev/null
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-
-		echo "Mounting UEFI (FAT32) partition" | msg -2 --foreground "Purple"
-		hi
-		mkdir "$DIR/uefi" 2>/dev/null
-		mount "$DIR/boot/grub/uefi.img" "$DIR/uefi" 2>/dev/null
-		case "$?" in
-			"0") ;;
-			"32") echo "root priveleges required for mount" | msg -2 --foreground "Light Red" --highlight ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-
-		echo "Copying UEFI bootloader to UEFI (FAT32) partition" | msg -2 --foreground "Purple"
-		hi
-		mkdir "$DIR/uefi/EFI" 2>/dev/null
-		mkdir "$DIR/uefi/EFI/BOOT" 2>/dev/null
-		cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-
-		echo "Unmounting UEFI (FAT32) partition" | msg -2 --foreground "Purple"
-		hi
-		umount "$DIR/uefi" 2>/dev/null
-		case "$?" in
-			"0") ;;
-			"32") echo "root priveleges required for umount" | msg -2 --foreground "Light Red" --highlight ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-
-		rmdir "$DIR/uefi" 2>/dev/null
-
-		lo
-		lo
-
+	if test "$LOADER" = "GRUB2"; then
+		if test -f "$DIR/boot/grub/grub.cfg"; then
+			echo "Keep GRUB2 config" | msg -2 --foreground "Purple"
+		elif test -f "/etc/boobstrap/grub.conf"; then
+			mkdir -p "$DIR/boot/grub"
+			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
+			echo "Configure GRUB2" | msg -2 --foreground "Purple"
+		else
+			echo "Failed to configure GRUB2" | msg -2 --foreground "Brown"
+		fi
+	fi
 	if test "$BOOTABLE" = "yes"; then
 		DEV="$(df $DIR | tail -n 1 | tr -s " " | cut -d " " -f 1 | sed -r "s:[0-9]+\$::" | sed -r "s:([0-9])[a-z]+\$:\\1:i")"
-		echo "Creating bootable device [$DEV]" | msg -2 --foreground "Light Blue"
+		TYP="$(fdisk -l $DEV | grep Disklabel\ type: | cut -d " " -f 3)"
+		echo "Creating bootable device [$DEV]" | msg -2
 		hi
-		echo "Installing UEFI bootloader" | msg -2 --foreground "Blue"
-		hi
-		mkdir "$DIR/EFI" 2>/dev/null
-		mkdir "$DIR/EFI/BOOT" 2>/dev/null
-		cp "$DIR/boot/grub/grub.efi" "$DIR/EFI/BOOT/BOOTX64.EFI" 2>/dev/null
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
-		esac
-		lo
-		lo
-	fi
-
-	if test "$ISO_9660" = "yes"; then
-		if test "$OUTPUT" = ""; then
-			OUTPUT="-"
+		if test "$LOADER" = "SYSLINUX"; then
+			echo "Installing SYSLINUX" | msg -2 --foreground "Light Blue"
+			case "$TYP" in
+				"dos") SYSLINUX_BIOS_BIOSLOADER="$SYSLINUX_BIOS_MBR" ;;
+				"gpt") SYSLINUX_BIOS_BIOSLOADER="$SYSLINUX_BIOS_GPT" ;;
+			esac
+			cat "$SYSLINUX_BIOS_BIOSLOADER" > $DEV
+			hi
+			echo "SYSLINUX says:" | msg -2 --foreground "Light Blue"
+			extlinux --install "$DIR/boot/syslinux" 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
+			lo
 		fi
-
-		echo "Writing BIOS/UEFI bootable ISO image [$OUTPUT]" | msg -2 --foreground "Purple"
+		if test "$LOADER" = "GRUB2"; then
+			echo "Installing GRUB2" | msg -2 --foreground "Light Blue"
+			hi
+			echo "GRUB2 says:" | msg -2 --foreground "Light Blue"
+			grub-install				\
+				--boot-directory="$DIR/boot"	\
+				--target="x86_64-efi"		\
+				--removable			\
+				--efi-directory="$DIR"		\
+				--recheck 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
+			grub-install "$DEV"			\
+				--boot-directory="$DIR/boot"	\
+				--target="i386-pc"		\
+				--recheck 2>&1 | msg -2 --foreground "Light Cyan" --background "Light Blue"
+			lo
+		fi
+		lo
+		echo "Done [$DEV]" | msg -2
+	fi
+	if test "$STR_OVERLAY"; then
+		mkoverlay --destination "$DIR/system" $STR_OVERLAY $STR_FORMAT
+	fi
+	if test "$ISO_9660" = "yes"; then
+		if test "$ISO" = ""; then
+			ISO="-"
+		fi
+		echo "Burning ISO [$ISO]" | msg -2
 		hi
-
-		xorriso -as "mkisofs" \
-			-iso-level 3 \
-			-full-iso9660-filenames \
-			--grub2-boot-info \
-			--grub2-mbr "$GRUB_i386_HYBRID" \
-			--boot-catalog-hide \
-			-eltorito-boot "boot/grub/bios.img" \
-			-no-emul-boot \
-			-boot-load-size 4 \
-			-boot-info-table \
-			-eltorito-alt-boot \
-			-e "boot/grub/uefi.img" \
-			-no-emul-boot \
-			-append_partition 2 "0xEF" "$DIR/boot/grub/uefi.img" \
-			-graft-points \
-			-quiet \
-			-output "$OUTPUT" \
-			"$DIR" 2>/dev/null
-
-		case "$?" in
-			"0") ;;
-			*) echo "Failure [$?]" | msg -2 --foreground "Brown" ;;
+		#if test "$LOADER" = "SYSLINUX"; then
+		#fi
+		if test "$LOADER" = "GRUB2"; then
+			if test "$ISO_9660_LEGACY_BOOT" = "yes"; then
+				ISO_9660_LEGACY_BOOT="-b boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table"
+				grub-mkstandalone \
+					--format="i386-pc" \
+					--output="$DIR/boot/grub/grub.raw" \
+					--install-modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+					--modules="linux16 linux normal iso9660 biosdisk memdisk test search" \
+					--locales="" \
+					--fonts="" \
+					--themes="" \
+					"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
+				cat "$GRUB_BIOS_CDBOOT" "$DIR/boot/grub/grub.raw" > $DIR/boot/grub/bios.img
+			fi
+			if test "$ISO_9660_EFI" = "yes"; then
+				ISO_9660_EFI="-eltorito-alt-boot -e boot/grub/uefi.img -no-emul-boot"
+				grub-mkstandalone \
+					--format="x86_64-efi" \
+					--output="$DIR/boot/grub/grub.efi" \
+					--modules="" \
+					--locales="" \
+					--fonts="" \
+					--themes="" \
+					"/boot/grub/grub.cfg=$DIR/boot/grub/grub.cfg"
+				truncate -s "10MB" "$DIR/boot/grub/uefi.img"
+				mkdosfs "$DIR/boot/grub/uefi.img"
+				mkdir "$DIR/uefi"
+				mount "$DIR/boot/grub/uefi.img" "$DIR/uefi"
+				mkdir "$DIR/uefi/EFI"
+				mkdir "$DIR/uefi/EFI/BOOT"
+				cp "$DIR/boot/grub/grub.efi" "$DIR/uefi/EFI/BOOT/BOOTX64.EFI"
+				umount "$DIR/uefi"
+				rmdir "$DIR/uefi"
+			fi
+		fi
+		if test "$ISO_9660_RUN" = "genisoimage"; then
+			genisoimage -v -J -r -V "$ISO_9660_LABEL" -A "$ISO_9660_LABEL" \
+				$ISO_9660_LEGACY_BOOT \
+				-o "$ISO" "$DIR"
+			CODE="$?"
+			if test "$LOADER" = "SYSLINUX"; then
+				if test -f "$ISO"; then
+					if test "$ISO_9660_EFI"; then
+						isohybrid --uefi "$ISO"
+					else
+						isohybrid "$ISO"
+					fi
+				fi
+			fi
+		fi
+		if test "$ISO_9660_RUN" = "xorrisofs"; then
+			xorrisofs -v -J -r -V "$ISO_9660_LABEL" -A "$ISO_9660_LABEL" \
+				$ISO_9660_LEGACY_BOOT \
+				$ISO_9660_EFI \
+				-o "$ISO" "$DIR"
+			CODE="$?"
+		fi
+		case "$CODE" in
+			"0") echo "Success" | msg -2 --foreground "Light Green" ;;
+			*) echo "Failure [$CODE]" | msg -2 --foreground "Brown" ;;
 		esac
 		lo
+		echo "Done ISO [$ISO]" | msg -2
 	fi
-
 	lo
 	echo "Done [$DIR]" | msg -2
 }
@@ -624,145 +663,6 @@ pkgadd() {
 	echo "" >> "$CHROOT/var/lib/pkg/db" 2>/dev/null			|| return 1
 }
 
-rd_copy_dev() {
-	echo "Copying devices" | msg -2
-	hi
-	for dev in "console" "tty" "tty1" "null"; do
-		cp -a "/dev/$dev" "$1/dev/$dev" 2>/dev/null
-		CODE="$?"
-		case "$CODE" in
-			"0")
-				echo "/dev/$dev" | msg -2 --foreground "Light Blue"
-				;;
-			*)
-				echo "/dev/$dev" | msg -2 --foreground "Light Red" --highlight
-				hi
-				echo "Failure [$CODE]" | msg -2 --foreground "Brown"
-				lo
-				;;
-		esac
-	done
-	lo
-}
-
-rd_copy_bin() {
-	echo "Copying system files" | msg -2
-	hi
-	for bin in $SYSTEMWIDE_BINARIES; do
-		which "$bin" 1>/dev/null 2>/dev/null
-		CODE="$?"
-		case "$CODE" in
-			"0")
-				echo "$bin" | msg -2 --foreground "Light Blue"
-				;;
-			*)
-				echo "$bin" | msg -2 --foreground "Light Red" --highlight
-				hi
-				echo "Failure [$CODE]" | msg -2 --foreground "Brown"
-				lo
-				;;
-		esac
-		deps=""
-		for dep in $(lddtree $(which $bin 2>/dev/null)); do
-			deps="$deps $dep"
-
-			if test -f "$1$dep"; then
-				continue
-			fi
-
-			install -D "$dep" "$1$dep" 2>/dev/null
-			CODE="$?"
-		done
-		hi
-		for dep in $(echo $deps | tr ' ' '\n' | sort | uniq | tr '\n' ' '); do
-			case "$CODE" in
-				"0")
-					echo "$dep" | msg -2 --foreground "Purple"
-					;;
-				*)
-					CODE=""
-					echo "$dep" | msg -2 --foreground "Light Red" --highlight
-					hi
-					echo "Failure [$CODE]" | msg -2 --foreground "Brown"
-					lo
-					;;
-			esac
-		done
-		lo
-	done
-	lo
-}
-
-rd_gen_init() {
-	echo "Creating init" | msg -2
-	hi
-	echo "/init" | msg -2 --foreground "Light Blue"
-	initramfs_init "$1/init"
-	CODE="$?"
-	case "$CODE" in
-		"0") ;;
-		*)
-			hi
-			echo "Failure [$CODE]" | msg -2 --foreground "Brown"
-			lo
-			;;
-	esac
-	lo
-}
-
-rd_make_dir() {
-	echo "Creating system directories" | msg -2
-	hi
-	for dir in "/proc" "/sys" "/dev" "/run" "/sbin" "/bin" "/etc" "/usr/sbin" "/usr/bin" "/mnt" "/tmp"; do
-		mkdir -p $1$dir 2>/dev/null
-		CODE="$?"
-		case "$CODE" in
-			"0")
-				echo "$dir" | msg -2 --foreground "Light Blue"
-				;;
-			*)
-				echo "$dir" | msg -2 --foreground "Light Red" --highlight
-				hi
-				echo "Failure [$CODE]" | msg -2 --foreground "Brown"
-				lo
-				;;
-		esac
-	done
-	lo
-}
-
-ofs_mk_cpio() {
-	SOURCE="$1"
-	TARGET="$2"
-
-	echo "Creating archive from $SOURCE to $TARGET" | msg -2 --foreground "Light Blue"
-	cd "$SOURCE"
-	find . -print0 | cpio --create --format "newc" --null --quiet >"$TARGET" 2>/dev/null
-	cd "$OLDPWD"
-
-	return $?
-}
-
-ofs_mk_squashfs() {
-	SOURCE="$1"
-	TARGET="$2"
-
-	echo "Making SquashFS from $SOURCE to $TARGET" | msg -2 --foreground "Light Blue"
-	mksquashfs "$SOURCE" "$TARGET" -quiet 1>/dev/null
-
-	return $?
-}
-
-ofs_mk_squashfs_xz() {
-	SOURCE="$1"
-	TARGET="$2"
-
-	echo "Making SquashFS from $SOURCE to $TARGET" | msg -2 --foreground "Light Blue"
-	mksquashfs "$SOURCE" "$TARGET" -quiet -b "$((1024 * 1024))" -comp "xz" -Xdict-size "100%" 1>/dev/null
-
-	return $?
-}
-
 cruxstrap() {
 	CHROOT=""
 	PORTS=""
@@ -851,20 +751,6 @@ cruxstrap() {
 	echo "Done [$CHROOT]" | msg -1
 }
 
-hi() {
-	return 0
-}
-
-lo() {
-	return 0
-}
-
-msg() {
-	while read -r input; do
-		echo "$input" >&2
-	done
-}
-
 main() {
 	PROGNAME="$(basename $0)"
 
@@ -890,38 +776,22 @@ exit 0
 		"mkbootisofs") mkbootisofs "$@" ;;
 		"exportroot") exportroot "$@" ;;
 		"importroot") importroot "$@" ;;
-		"mkoverlayfs") mkoverlayfs "$@" ;;
+		"mkoverlayfs") mkoverlay "$@" ;;
 	esac
 }
 
-preflight_checks() {
-	for dep in "cpio" "mkdosfs"; do
-		which "$dep" 1>/dev/null 2>/dev/null
-		case "$?" in
-			"0") ;;
-			*) TEST="x" ;;
-		esac
+hi() {
+	return 0
+}
+
+lo() {
+	return 0
+}
+
+msg() {
+	while read -r input; do
+		echo "$input" >&2
 	done
-
-	if test "$TEST" = "x"; then
-		echo "install: cpio, dosfstools, grub, grub-efi, xorriso." | msg -2
-		echo "nice to have (optional): squashfs-tools, busybox." | msg -2
-		echo "if you sure is it installed check for PATH variable" | msg -2
-		echo "some utilities requires root priveleges" | msg -2
-		return 1
-	fi
-
-	if test "$COLOURS" = ""; then
-		if which tput 1>/dev/null 2>/dev/null; then
-			COLOURS="auto"
-		else
-			COLOURS="none"
-		fi
-	fi
-
-	if test "$COLOURS" = "auto"; then
-		set_color_theme 2>/dev/null
-	fi
 }
 
 for BOOBSTRAP_CONF in "/etc/boobstrap/boobstrap.conf" "$HOME/.config/boobstrap/boobstrap.conf"; do
@@ -929,8 +799,6 @@ for BOOBSTRAP_CONF in "/etc/boobstrap/boobstrap.conf" "$HOME/.config/boobstrap/b
 		. "$BOOBSTRAP_CONF" || exit 1
 	fi
 done
-
-preflight_checks || exit 1
 
 readonly BOOBSTRAP_NAME="BOOBSTRAP"
 readonly BOOBSTRAP_VERSION="1.2"

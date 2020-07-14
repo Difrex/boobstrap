@@ -15,7 +15,7 @@ Boobstrap is a scripts complex for creating bootable GNU/Linux images.
         - [boobs.use-overlayfs](#boobs.use-overlayfs)
         - [boobs.search-rootfs](#boobs.search-rootfs)
         - [boobs.copy-to-ram](#boobs.copy-to-ram)
-        - [boobs.overlay-cache](#boobs.overlay-cache)
+        - [boobs.rootfs-changes](#boobs.rootfs-changes)
     - [Utilities](#utilities)
         - [mkbootstrap](#mkbootstrap)
         - [mkinitramfs](#mkinitramfs)
@@ -171,13 +171,13 @@ Will copy overlays to the RAM before mounting.
 
 For example, you can boot with USB and unplug your USB-stick after system boots.
 
-### boobs.overlay-cache
+### boobs.rootfs-changes
 
 While using Overlay FS all your data stores in SHMFS (tmpfs, ramffs) by default, but you can
 create a empty file on your storage device, then create any supported by kernel filesystem on
 this file (image) and use it as storage for your data, instead of storing data in temporarely SHMFS.
 
-Example `boobs.overlay-cache=/dev/sda1` for using whole /dev/sda1 as storage for any changes.
+Example `boobs.rootfs-changes=/dev/sda1` for using whole /dev/sda1 as storage for any changes.
 While reboots cache-data is keep. Storage (file with filesystem) must be created manually.
 
 ## Utilities

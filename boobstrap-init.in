@@ -131,7 +131,7 @@ use_driver_cpio() {
 cheat_sheet() {
 	while test "$1"; do
 		case "$1" in
-			"boobs.search-rootfs="*|"root="*) SEARCH_ROOTFS="${1##*=}" ;;
+			"boobs.search-rootfs="*) SEARCH_ROOTFS="${1##*=}" ;;
 			"boobs.rootfs-changes="*) ROOTFS_CHANGES="${1##*=}" ;;
 			"boobs.use-overlayfs") USE_FILESYSTEM="OVERLAY_FS" ;;
 			"boobs.use-shmfs") USE_FILESYSTEM="SHMFS" ;;
@@ -263,12 +263,19 @@ main() {
 		if test -b "$SEARCH_ROOTFS"; then
 			echo "$ROOT" > /tmp/.overlay_fs
 		else
-			search_filesystem -s "$ROOT" -o "$DRIVER_PATH"
+			# TODO
+			# POSIX shell does alpha-numeric sorting
+			# Prevent order mount: 10 100 20 30
+			# Should be: 10 20 30 100
+			# Reading from file is a good idea
+			#while read ROOT; do
+				search_filesystem -s "$ROOT" -o "$DRIVER_PATH"
+			#done < /tmp/.search_rootfs
 		fi
 		echo "Searching filesystem done"
 
-		while read line; do
-			LOWERDIR="$line:$LOWERDIR"
+		while read LINE; do
+			LOWERDIR="$LINE:$LOWERDIR"
 		done < /tmp/.overlay_fs
 
 		OVERLAY_LOWERDIR="${LOWERDIR%?}"

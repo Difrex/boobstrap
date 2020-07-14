@@ -1,7 +1,7 @@
 #! /usr/bin/env sh
 
 crux_gnulinux() {
-	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
+	echo mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
 		--ports-dir "$PWD/cruxmedia/crux/core"					\
 											\
@@ -22,7 +22,7 @@ crux_gnulinux() {
 		"gawk"			"openssh"		"which"			\
 		"glibc"			"openssl"		"xz"			\
 		"grep"			"pkgutils"		"zlib"
-
+exit 0
 	exportroot "$DIR/bootstrap" > "$PWD/crux_gnulinux-embedded.rootfs"
 }
 
