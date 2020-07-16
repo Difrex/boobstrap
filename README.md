@@ -1,13 +1,13 @@
 GL HF
 
-# Boobstrap
+# booty
 
-Boobstrap is a scripts complex for creating bootable GNU/Linux images.
+booty is a scripts complex for creating bootable GNU/Linux images.
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 **Table of Contents**
 
-- [Boobstrap](#boobstrap)
+- [booty](#booty)
     - [Installation](#installation)
     - [Quick start](#quick-start)
     - [Boot options](#boot-options)
@@ -32,10 +32,10 @@ Boobstrap is a scripts complex for creating bootable GNU/Linux images.
 <!-- markdown-toc end -->
 
 
-So what Boobstrap can do?
+So what booty can do?
 
 1. Installs "chroots" into the directory, it have native CRUX GNU/Linux
-support but for other distros Boobstrap just switching to using external
+support but for other distros booty just switching to using external
 bootstrap-wrappers like pacstrap, debootstrap, so you need to have it
 installed. For CRUX GNU/Linux its a simple pkgadd implementation using "tar"
 and my pkgadd can only installing packages into the "chroot/", nothing else.
@@ -45,7 +45,7 @@ using standalone directory as INITRD "chroot". INITRD images can including the
 full system as directory, SquashFS-compressed image and so on... Then you
 can share INITRD image via PXE or put it on any device. Also INITRD can
 boots to plain SHMFS (TMPFS, RAMFS) or using Overlay FS with SquashFS.
-Boobstrap can use busybox but only if you have one, its optional feature.
+booty can use busybox but only if you have one, its optional feature.
 
 Aaaaaand...
 
@@ -110,17 +110,17 @@ But its optional. You can just use SHMFS if you have enough RAM for your system.
 
 Generic GNU/Linux
 ```sh
-git clone https://github.com/sp00f1ng/boobstrap.git
-cd boobstrap
+git clone https://github.com/sp00f1ng/booty.git
+cd booty
 make install
 ```
 
 ArchLinux
 ```sh
-git clone https://github.com/sp00f1ng/boobstrap.git
-cd boobstrap
+git clone https://github.com/sp00f1ng/booty.git
+cd booty
 make arch-pkg
-pacman -U packages/ArchLinux/boobstrap-git-*.pkg.tar.xz
+pacman -U packages/ArchLinux/booty-git-*.pkg.tar.xz
 ```
 
 ## Quick start
@@ -128,13 +128,13 @@ pacman -U packages/ArchLinux/boobstrap-git-*.pkg.tar.xz
 Quick Start (just run a test):
 
 ```sh
-# boobstrap/tests/crux_gnulinux-download-and-build
+# booty/tests/crux_gnulinux-download-and-build
 # qemu-system-x86_64 -enable-kvm -m 1G -cdrom tmp.*/install.iso
 ```
 
 ## Boot options
 
-Boobstrap's /init script can handle some kernel options ("cheats") while system boots.
+booty's /init script can handle some kernel options ("cheats") while system boots.
 
 ### boobs.use-shmfs
 
@@ -458,11 +458,11 @@ For really good initrd do this step-by-step:
 
 Then run:
 
-* `./boobstrap/bootstrap-templates/crux_gnulinux-embedded/crux_gnulinux-embedded.bbuild`
+* `./booty/bootstrap-templates/crux_gnulinux-embedded/crux_gnulinux-embedded.bbuild`
 
 And now you have "crux_gnulinux-embedded.rootfs" with ~160MB++ size.
 
-* `./boobstrap/bootstrap-templates/crux_gnulinux-initrd/crux_gnulinux-initrd.bbuild`
+* `./booty/bootstrap-templates/crux_gnulinux-initrd/crux_gnulinux-initrd.bbuild`
 
 And now you have "crux_gnulinux-initrd.rootfs" with ~160MB++ size.
 Its a ready to boot initrd image, but 160MB...
@@ -530,7 +530,7 @@ Systems -- scripts for production-ready images configuration and creation.
 For example, run a template script:
 
 ```sh
-# ./boobstrap/bootstrap-templates/crux_gnulinux-embedded.bbuild
+# ./booty/bootstrap-templates/crux_gnulinux-embedded.bbuild
 ```
 
 You will get a "crux_gnulinux-embedded.rootfs" as a lightweight system for embedded use.
@@ -540,14 +540,9 @@ some packages, setting up config files, and so on.
 So then, run a system script:
 
 ```sh
-# ./boobstrap/bootstrap-systems/crux_gnulinux-core/crux_gnulinux-core.bbuild
+# ./booty/bootstrap-systems/crux_gnulinux-core/crux_gnulinux-core.bbuild
 ```
 
 And now you will get a "production-ready" install.iso.
-
-## Friendly Asked Questions
-
-Q: Why boobstrap?
-A: I am a white heterosexual man and love women. But they don't love me. =(
 
 GG

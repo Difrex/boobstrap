@@ -5,7 +5,7 @@ crux_gnulinux() {
 
 	mkbootstrap "crux_gnulinux" "$DIR/bootstrap"					\
 											\
-		--ports-dir "$PWD/cruxports"						\
+		--ports "$PWD/cruxports"						\
 											\
 		"linux"
 
@@ -20,9 +20,11 @@ crux_gnulinux() {
 
 	mkbootisofs "$DIR/bootimage"							\
 											\
+		--legacy-boot "grub2" --efi "grub2"					\
+											\
 		--overlay "$DIR/bootstrap"						\
 											\
-		--cpio --legacy-boot "syslinux" --efi "grub2"				\
+		--cpio									\
 											\
 		--output "$DIR/install.iso"
 }

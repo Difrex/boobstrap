@@ -1,54 +1,24 @@
 #! /usr/bin/env sh
 
 mkbootstrap() {
-	DO="$1"
+	SYSTEM="$1"
 
-	case "$2" in
-		"") ;;
-		*) shift ;;
-	esac
+	if test "$2"; then
+		shift
+	else
+		return 1
+	fi
 
-	case "$DO" in
-		"crux_gnulinux") cruxstrap "$@" ;;
+	case "$SYSTEM" in
 		"archlinux_gnulinux"|"arch_gnulinux") pacstrap "$@" ;;
 		"manjaro_gnulinux") basestrap "$@" ;;
 		"debian_gnulinux") debootstrap "$@" ;;
+		"crux_gnulinux") cruxstrap "$@" ;;
 		"fedora_gnulinux"|"redhat_gnulinux"|"centos_gnulinux") dnf "$@" ;;
-		"--help"|"-h"|"-?")
-			cat <<EOF
-$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
-Usage: mkbootstrap <system> <directory> [options]... [packages]...
-Installs selected system into the directory.
-
-  <system>                   native supported OS:
-                               crux_gnulinux
-
-                             other supported OS:
-                               fedora_gnulinux *
-                               redhat_gnulinux *
-                               centos_gnulinux *
-                               debian_gnulinux *
-                               archlinux_gnulinux *
-                               manjaro_gnulinux *
-
-                             * requires external wrappers i.e.:
-                               pacstrap, debootstrap and so on
-
-  crux_gnulinux options:
-
-  --ports-dir <directory>    directory with packages for CRUX
-
-  [packages]                 packages to install.
-                               can be package name or filename
-                               if empty then selected
-                               --ports-dir will be installed
-EOF
-exit 0
-;;
 	esac
 }
 
-mkoverlay() {
+overlay() {
 	DESTINATION=""
 	OVERLAY=""
 	FORMAT=""
@@ -61,8 +31,8 @@ mkoverlay() {
 			"--format") FORMAT="$2" ; shift ;;
 			"--help"|"-h")
 				cat <<EOF
-$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
-Usage: mkoverlayfs <directory> [options]...
+$BOOTY_NAME $BOOTY_VERSION
+Usage: overlay <directory> [options]...
 Creates filesystem from the directory by using selected format.
 
   --destination <directory>  specify directory to save system
@@ -142,7 +112,7 @@ mkinitramfs() {
 			"--squashfs-xz") STR_FORMAT="--format squashfs-xz" ;;
 			"--help"|"-h")
 				cat <<EOF
-$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+$BOOTY_NAME $BOOTY_VERSION
 Usage: mkinitramfs <directory> [options]...
 Creates bootable ram disk image from the directory.
 
@@ -244,7 +214,7 @@ exit 0
 		fi
 	fi
 	if test "$STR_OVERLAY"; then
-		mkoverlay --destination "$DIR/media/system" $STR_OVERLAY $STR_FORMAT
+		overlay --destination "$DIR/media/system" $STR_OVERLAY $STR_FORMAT
 	fi
 	echo "Creating initramfs [$OUTPUT]" | msg -2
 	cd "$DIR" 2>/dev/null
@@ -305,7 +275,7 @@ mkbootisofs() {
 			"--squashfs-xz") STR_FORMAT="--format squashfs-xz" ;;
 			"--help")
 				cat <<EOF
-$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
+$BOOTY_NAME $BOOTY_VERSION
 Usage: mkbootisofs <directory> [BOOT.ISO] [options]...
 Creates BIOS and/or UEFI compatible bootable images.
 
@@ -341,11 +311,11 @@ exit 0
 		return 1
 	fi
 	if test "$ISO_9660" = "yes"; then
-		if genisoimage --version 1>/dev/null 2>/dev/null; then
-			ISO_9660_RUN="genisoimage"
-		fi
 		if xorrisofs --version 1>/dev/null 2>/dev/null; then
 			ISO_9660_RUN="xorrisofs"
+		fi
+		if genisoimage --version 1>/dev/null 2>/dev/null; then
+			ISO_9660_RUN="genisoimage"
 		fi
 		if test "$ISO_9660_RUN" = ""; then
 			echo "None of cdrkit, xorriso/xorrisofs or mkisofs found" | msg -2 --foreground "Brown"
@@ -382,12 +352,12 @@ exit 0
 	case "$LOADER_LEGACY_BOOT" in
 		"grub2"|"GRUB2") LOADER_LEGACY_BOOT="GRUB2" ;;
 		"syslinux"|"SYSLINUX") LOADER_LEGACY_BOOT="SYSLINUX" ;;
-		*) echo "Unknown legacy boot loader: $LOADER_LEGACY_BOOT" | msg -2 --foreground "Brown" ; return 1 ;;
+		?*) echo "Unknown legacy boot loader: $LOADER_LEGACY_BOOT" | msg -2 --foreground "Brown" ; return 1 ;;
 	esac
 	case "$LOADER_EFI" in
 		"grub2"|"GRUB2") LOADER_EFI="GRUB2" ;;
 		"syslinux"|"SYSLINUX") LOADER_EFI="SYSLINUX" ;;
-		*) echo "Unknown efi loader: $LOADER_LEGACY_BOOT" | msg -2 --foreground "Brown" ; return 1 ;;
+		?*) echo "Unknown efi loader: $LOADER_LEGACY_BOOT" | msg -2 --foreground "Brown" ; return 1 ;;
 	esac
 	echo "Creating bootable filesystem [$DIR]" | msg -2
 	hi
@@ -401,7 +371,7 @@ exit 0
 			hi
 			echo "syslinux says:" | msg -2 --foreground "Light Blue"
 			mkdir -p "$DIR/boot/syslinux"
-			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
+			cp "/etc/booty/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
 			case "$TYP" in
 				"dos") SYSLINUX_MBR="$SYSLINUX_BIOS_MBR" ;;
 				"gpt") SYSLINUX_MBR="$SYSLINUX_BIOS_GPTMBR" ;;
@@ -415,7 +385,7 @@ exit 0
 			echo "Installing syslinux as efi loader" | msg -2 --foreground "Light Blue"
 			mkdir -p "$DIR/boot/syslinux"
 			mkdir -p "$DIR/efi/boot"
-			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
+			cp "/etc/booty/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
 			cp "$SYSLINUX_UEFI_EFIBOOT" "$DIR/efi/boot/bootx64.efi"
 			cp "$SYSLINUX_UEFI_LDLINUX" "$DIR/efi/boot/"
 		fi
@@ -424,7 +394,7 @@ exit 0
 			hi
 			echo "grub2 says:" | msg -2 --foreground "Light Blue"
 			mkdir -p "$DIR/boot/grub"
-			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
+			cp "/etc/booty/grub.conf" "$DIR/boot/grub/grub.cfg"
 			grub-install "$DEV"			\
 				--boot-directory="$DIR/boot"	\
 				--target="i386-pc"		\
@@ -436,7 +406,7 @@ exit 0
 			hi
 			echo "grub2 says:" | msg -2 --foreground "Light Blue"
 			mkdir -p "$DIR/boot/grub"
-			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
+			cp "/etc/booty/grub.conf" "$DIR/boot/grub/grub.cfg"
 			grub-install				\
 				--boot-directory="$DIR/boot"	\
 				--target="x86_64-efi"		\
@@ -449,7 +419,7 @@ exit 0
 		echo "Done [$DEV]" | msg -2
 	fi
 	if test "$STR_OVERLAY"; then
-		mkoverlay --destination "$DIR/system" $STR_OVERLAY $STR_FORMAT
+		overlay --destination "$DIR/system" $STR_OVERLAY $STR_FORMAT
 	fi
 	if test "$ISO_9660" = "yes"; then
 		if test "$ISO" = ""; then
@@ -460,7 +430,7 @@ exit 0
 		if test "$LOADER_LEGACY_BOOT" = "SYSLINUX"; then
 			ISO_9660_LEGACY_BOOT="-b boot/syslinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table"
 			mkdir -p "$DIR/boot/syslinux"
-			cp "/etc/boobstrap/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
+			cp "/etc/booty/syslinux.conf" "$DIR/boot/syslinux/syslinux.cfg"
 			for bin in $SYSLINUX_BIOS_ISOLINUX $SYSLINUX_BIOS_LDLINUX; do
 				cp "$bin" "$DIR/boot/syslinux"
 			done
@@ -472,7 +442,7 @@ exit 0
 		if test "$LOADER_LEGACY_BOOT" = "GRUB2"; then
 			ISO_9660_LEGACY_BOOT="-b boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table"
 			mkdir -p "$DIR/boot/grub"
-			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
+			cp "/etc/booty/grub.conf" "$DIR/boot/grub/grub.cfg"
 			grub-mkstandalone \
 				--format="i386-pc" \
 				--output="$DIR/boot/grub/grub.raw" \
@@ -487,7 +457,7 @@ exit 0
 		if test "$LOADER_EFI" = "GRUB2"; then
 			ISO_9660_EFI="-eltorito-alt-boot -e boot/grub/uefi.img -no-emul-boot"
 			mkdir -p "$DIR/boot/grub"
-			cp "/etc/boobstrap/grub.conf" "$DIR/boot/grub/grub.cfg"
+			cp "/etc/booty/grub.conf" "$DIR/boot/grub/grub.cfg"
 			grub-mkstandalone \
 				--format="x86_64-efi" \
 				--output="$DIR/boot/grub/grub.efi" \
@@ -617,161 +587,19 @@ lddtree() {
 	if test "$1" = ""; then
 		return 0
 	fi
-
 	echo "$1"
-
 	for dep in $(ldd "$1" | awk 'BEGIN{ORS="\n"}$1~/^\//{print $1}$3~/^\//{print $3}'); do
 		lddtree "$dep"
 	done
 }
 
-pkgadd() {
-	CHROOT="/"
-
-	# NOTABUG
-	# behavior like original pkgadd
-	while test "$2"; do
-		case "$1" in
-			"--root"|"-r") CHROOT="$2" ; shift ;;
-			*) echo "invalid option $1" 1>&2 ; return 1 ;;
-		esac
-		shift
-	done
-
-	name="${1}"
-	name="${name##*/}"
-	name="${name%%.pkg*}"
-	name="${name%%\#*}"
-
-	version="${1}"
-	version="${version##*/}"
-	version="${version%%.pkg*}"
-	version="${version##*\#}"
-
-	echo "$name" >> "$CHROOT/var/lib/pkg/db" 2>/dev/null		|| return 1
-	echo "$version" >> "$CHROOT/var/lib/pkg/db" 2>/dev/null		|| return 1
-	tar -xpvf "$1" \
-		--xattrs-include="*.*" \
-		--numeric-owner \
-		--directory "$CHROOT" >> "$CHROOT/var/lib/pkg/db" \
-		2>/dev/null						|| return 1
-	echo "" >> "$CHROOT/var/lib/pkg/db" 2>/dev/null			|| return 1
-}
-
-cruxstrap() {
-	CHROOT=""
-	PORTS=""
-	PACKAGES=""
-	INSTALL=""
-	IGNORED=""
-
-	while test "$1"; do
-		case "$1" in
-			"--ports-dir") PORTS="$PORTS $2" ; shift ;;
-			*)
-				if test "$CHROOT" = ""; then
-					CHROOT="$1"
-				else
-					PACKAGES="$PACKAGES $1"
-				fi
-				;;
-		esac
-		shift
-	done
-
-	echo "Bootstrapping [$CHROOT]" | msg -1
-	hi
-
-	if test "$PACKAGES" = ""; then
-		for dir in $PORTS; do
-			for prt in "$dir/"*; do
-				INSTALL="$INSTALL $(realpath $prt)"
-			done
-		done
-	else
-		for pkg in $PACKAGES; do
-			if test -f "$pkg"; then
-				INSTALL="$INSTALL $(realpath $pkg)"
-			else
-				FAILURE="y"
-				for dir in $PORTS; do
-					for prt in "$dir/"*; do
-						case "$prt" in
-							*"/$pkg") INSTALL="$INSTALL $(realpath $prt)" ; FAILURE="" ;;
-							*"/$pkg#"*) INSTALL="$INSTALL $(realpath $prt)" ; FAILURE="" ;;
-						esac
-					done
-				done
-			fi
-			if test "$FAILURE" = "y"; then
-				IGNORED="$IGNORED $pkg"
-			fi
-		done
-	fi
-
-	if test "$IGNORED"; then
-		echo "Packages ignored because none found." | msg -2
-		hi
-		for prt in $(echo $IGNORED | tr " " "\n" | sort | uniq | tr "\n" " "); do
-			echo "$prt" | msg -2 --foreground "Light Red" --highlight
-		done
-		lo
-	fi
-
-	if test "$INSTALL"; then
-		echo "Packages to install: $(echo $INSTALL | wc -w)" | msg -1
-		mkdir -p "$CHROOT/var/lib/pkg" 2>/dev/null
-		touch "$CHROOT/var/lib/pkg/db" 2>/dev/null
-		hi
-		for prt in $(echo $INSTALL | tr " " "\n" | sort | uniq | tr "\n" " "); do
-			name="$(basename $prt)"
-			name="${name%%#*}"
-			pkgadd --root "$CHROOT" "$prt"
-			case "$?" in
-				"0")
-					echo "$name" | msg -1 --foreground "Light Green"
-					;;
-				*)
-					echo "$name" | msg -1 --foreground "Light Red" --highlight
-					;;
-			esac
-		done
-		lo
-		echo "Done [$CHROOT]" | msg -1
-	else
-		echo "No packages selected. Nothing to do." | msg -1
-	fi
-
-	lo
-	echo "Done [$CHROOT]" | msg -1
-}
-
 main() {
-	PROGNAME="$(basename $0)"
-
-	if test "$PROGNAME" = "boobstrap"; then
-
-		PROGNAME="$1"
-
-		case "$2" in
-			"--help")
-				cat <<EOF
-$BOOBSTRAP_NAME $BOOBSTRAP_VERSION
-EOF
-exit 0
-				;;
-			"") ;;
-			*) shift ;;
-		esac
-	fi
-
-	case "$PROGNAME" in
+	case "$(basename $0)" in
 		"mkbootstrap") mkbootstrap "$@" ;;
 		"mkinitramfs") mkinitramfs "$@" ;;
 		"mkbootisofs") mkbootisofs "$@" ;;
 		"exportroot") exportroot "$@" ;;
 		"importroot") importroot "$@" ;;
-		"mkoverlayfs") mkoverlay "$@" ;;
 	esac
 }
 
@@ -789,13 +617,13 @@ msg() {
 	done
 }
 
-for BOOBSTRAP_CONF in "/etc/boobstrap/boobstrap.conf" "$HOME/.config/boobstrap/boobstrap.conf"; do
-	if test -f "$BOOBSTRAP_CONF"; then
-		. "$BOOBSTRAP_CONF" || exit 1
+for BOOTY_CONF in "/etc/booty/booty.conf"; do
+	if test -f "$BOOTY_CONF"; then
+		. "$BOOTY_CONF" || exit 1
 	fi
 done
 
-readonly BOOBSTRAP_NAME="BOOBSTRAP"
-readonly BOOBSTRAP_VERSION="1.2"
+readonly BOOTY_NAME="BOOTY"
+readonly BOOTY_VERSION="1.2"
 
 main "$@"

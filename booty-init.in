@@ -131,27 +131,24 @@ use_driver_cpio() {
 cheat_sheet() {
 	while test "$1"; do
 		case "$1" in
-			"boobs.search-rootfs="*) SEARCH_ROOTFS="${1##*=}" ;;
-			"boobs.rootfs-changes="*) ROOTFS_CHANGES="${1##*=}" ;;
-			"boobs.use-overlayfs") USE_FILESYSTEM="OVERLAY_FS" ;;
-			"boobs.use-shmfs") USE_FILESYSTEM="SHMFS" ;;
-			"boobs.copy-to-ram"|"toram") COPY_TO_RAM="yes" ;;
-			"!boobs.copy-to-ram") COPY_TO_RAM="no" ;;
+			"booty.search-rootfs="*) SEARCH_ROOTFS="${1##*=}" ;;
+			"booty.rootfs-changes="*) ROOTFS_CHANGES="${1##*=}" ;;
+			"booty.rootfs-sizeof="*) ROOTFS_SIZEOF="${1##*=}" ;;
+			"booty.use-overlayfs") USE_FILESYSTEM="OVERLAY_FS" ;;
+			"booty.use-shmfs") USE_FILESYSTEM="SHMFS" ;;
+			"booty.copy-to-ram"|"toram") COPY_TO_RAM="yes" ;;
+			"!booty.copy-to-ram"|"!toram") COPY_TO_RAM="no" ;;
 		esac
 		shift
 	done
 }
 
 main() {
-	echo "kernel OK"
-	echo "initrd OK"
-
 	for dir in "/sbin" "/usr/sbin" "/opt/sbin" "/bin" "/usr/bin" "/opt/bin"; do
 		if test -x "$dir/busybox"; then
 			$dir/busybox --install
 			if test "$?" = "0"; then
 				BUSYBOX="yes"
-				echo "busybox OK"
 			fi
 		fi
 	done
@@ -165,11 +162,16 @@ main() {
 	mount -t tmpfs none /run
 
 	while read input; do
+		echo "boot: $input"
 		cheat_sheet $input
 	done < /proc/cmdline
 
 	if test "$SEARCH_ROOTFS" = ""; then
 		SEARCH_ROOTFS="/system"
+	fi
+
+	if test "$ROOTFS_SIZEOF" = ""; then
+		ROOTFS_SIZEOF="50%"
 	fi
 
 	if test "$COPY_TO_RAM" = ""; then
@@ -239,7 +241,7 @@ main() {
 		mount -t tmpfs -o size=1% tmpfs "$DRIVER_PATH" # 1% enough for mounts only
 
 		mkdir -p "$SWITCH_ROOTFS"
-		mount -t tmpfs -o size=100% tmpfs "$SWITCH_ROOTFS"
+		mount -t tmpfs -o size="$ROOTFS_SIZEOF" tmpfs "$SWITCH_ROOTFS"
 
 		# TODO
 		# 1. Using block devices in SHMFS (SWITCH_ROOTFS="$ROOT" if $COPY_TO_RAM = "yes")
@@ -257,7 +259,7 @@ main() {
 		mount -t tmpfs -o size=100% tmpfs "$DRIVER_PATH"
 
 		mkdir -p "$SWITCH_ROOTFS"
-		mount -t tmpfs -o size=100% tmpfs "$SWITCH_ROOTFS"
+		mount -t tmpfs -o size="$ROOTFS_SIZEOF" tmpfs "$SWITCH_ROOTFS"
 
 		echo "Searching filesystem"
 		if test -b "$SEARCH_ROOTFS"; then
